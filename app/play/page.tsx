@@ -26,6 +26,8 @@ import {
   isValidCoordinates,
 } from "@/lib/game/geo";
 import { formatNumber, continentLabel } from "@/lib/utils";
+import { recordGameResult } from "@/lib/services/player-store";
+import Link from "next/link";
 import type { GeoCoordinates, GeoGameMode } from "@/types";
 
 const GlobeContainer = dynamic(
@@ -103,6 +105,8 @@ export default function PlayPage() {
   const [now, setNow] = useState(0); // impostato in startGame (Date.now vietato in prerender)
   const [errorMsg, setErrorMsg] = useState("");
   const [announcement, setAnnouncement] = useState("");
+  const [xpEarned, setXpEarned] = useState<number | null>(null);
+  const savedGameRef = useRef<GeoGameState | null>(null);
 
   const pendingRef = useRef<GeoCoordinates | null>(null);
   pendingRef.current = pendingGuess;
@@ -114,9 +118,19 @@ export default function PlayPage() {
       case "training":
         return { mode: "training", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: 0 };
       case "challenge":
-        return { mode: "challenge", totalRounds: challengeRounds, secondsPerRound: 60, totalSeconds: 0 };
+        return {
+          mode: "challenge",
+          totalRounds: challengeRounds,
+          secondsPerRound: 60,
+          totalSeconds: 0,
+        };
       case "timed":
-        return { mode: "timed", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: timedSeconds };
+        return {
+          mode: "timed",
+          totalRounds: Infinity,
+          secondsPerRound: 0,
+          totalSeconds: timedSeconds,
+        };
     }
   }, [selectedMode, challengeRounds, timedSeconds]);
 
@@ -128,6 +142,8 @@ export default function PlayPage() {
       setPendingGuess(null);
       setFocusCoords(null);
       setAnnouncement("");
+      setXpEarned(null);
+      savedGameRef.current = null;
       setScreen("game");
     } catch (err) {
       setErrorMsg(
@@ -184,6 +200,40 @@ export default function PlayPage() {
     return () => clearInterval(id);
   }, [screen, doSubmit]);
 
+  // Salva automaticamente punteggio, XP e classifica a fine partita
+  useEffect(() => {
+    if (screen !== "summary" || !game || savedGameRef.current === game) return;
+    savedGameRef.current = game;
+    const summary = summarize(game);
+    if (summary.roundsPlayed === 0) return;
+
+    let streak = 0;
+    let bestStreak = 0;
+    let goodRounds = 0;
+    for (const r of summary.results) {
+      if (!r.timedOut && r.distanceKm != null && r.distanceKm <= 1500) {
+        goodRounds++;
+        streak++;
+        bestStreak = Math.max(bestStreak, streak);
+      } else {
+        streak = 0;
+      }
+    }
+
+    void recordGameResult({
+      mode: game.config.mode,
+      difficulty: game.config.mode === "training" ? "easy" : "medium",
+      score: summary.totalScore,
+      roundsPlayed: summary.roundsPlayed,
+      goodRounds,
+      bestStreak,
+      bullseyes: summary.bullseyes,
+      won: summary.averageScore >= 2500,
+    }).then((res) => {
+      setXpEarned(res.xpEarned);
+    });
+  }, [screen, game]);
+
   const target = game ? currentTarget(game) : undefined;
   const lastResult = game?.results[game.results.length - 1];
   const revealed = game?.phase === "revealed";
@@ -215,9 +265,7 @@ export default function PlayPage() {
       ? Math.max(0, Math.ceil((game.roundExpiresAt - now) / 1000))
       : null;
   const gameSecondsLeft =
-    game?.gameExpiresAt != null
-      ? Math.max(0, Math.ceil((game.gameExpiresAt - now) / 1000))
-      : null;
+    game?.gameExpiresAt != null ? Math.max(0, Math.ceil((game.gameExpiresAt - now) / 1000)) : null;
 
   // ==========================================================
   // Schermata: errore
@@ -265,6 +313,11 @@ export default function PlayPage() {
             <p className="text-slate-400 mt-1">
               punti su {formatNumber(s.maxPossibleScore)} possibili
             </p>
+            {xpEarned != null && xpEarned > 0 && (
+              <p className="text-sm text-emerald-400 font-medium mt-2">
+                +{formatNumber(xpEarned)} XP guadagnati · Punteggio salvato in classifica
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Stat label="Round giocati" value={String(s.roundsPlayed)} color="text-cyan-400" />
@@ -278,11 +331,7 @@ export default function PlayPage() {
               value={s.averageDistanceKm != null ? formatDistance(s.averageDistanceKm) : "—"}
               color="text-amber-400"
             />
-            <Stat
-              label="Colpi entro 100 km"
-              value={String(s.bullseyes)}
-              color="text-violet-400"
-            />
+            <Stat label="Colpi entro 100 km" value={String(s.bullseyes)} color="text-violet-400" />
           </div>
         </Card>
 
@@ -293,7 +342,13 @@ export default function PlayPage() {
               <Card key={`${r.location.id}-${i}`} className="!p-4">
                 <div className="flex items-center gap-3">
                   <span className="text-xl" aria-hidden>
-                    {r.timedOut ? "⌛" : r.distanceKm! <= 100 ? "🎯" : r.distanceKm! <= 1500 ? "👍" : "🌍"}
+                    {r.timedOut
+                      ? "⌛"
+                      : r.distanceKm! <= 100
+                        ? "🎯"
+                        : r.distanceKm! <= 1500
+                          ? "👍"
+                          : "🌍"}
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white font-medium truncate">
@@ -306,7 +361,9 @@ export default function PlayPage() {
                       {r.hintsUsed > 1 ? ` · ${r.hintsUsed} indizi usati` : ""}
                     </p>
                   </div>
-                  <div className={`text-base font-bold ${r.score > 0 ? "text-emerald-400" : "text-slate-500"}`}>
+                  <div
+                    className={`text-base font-bold ${r.score > 0 ? "text-emerald-400" : "text-slate-500"}`}
+                  >
                     +{formatNumber(r.score)}
                   </div>
                 </div>
@@ -319,9 +376,19 @@ export default function PlayPage() {
           <Button size="lg" onClick={startGame} className="flex-1">
             🔄 Gioca ancora
           </Button>
-          <Button size="lg" variant="secondary" onClick={() => setScreen("menu")} className="flex-1">
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={() => setScreen("menu")}
+            className="flex-1"
+          >
             Cambia modalità
           </Button>
+          <Link href="/leaderboard" className="flex-1">
+            <Button size="lg" variant="secondary" className="w-full">
+              🏆 Vedi Classifica
+            </Button>
+          </Link>
         </div>
       </div>
     );
@@ -336,9 +403,8 @@ export default function PlayPage() {
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white mb-2">Trova il luogo sul globo 🌍</h1>
           <p className="text-slate-400 max-w-2xl mx-auto">
-            Ti diamo un obiettivo e degli indizi: ruota la Terra, zooma e
-            posiziona la puntina il più vicino possibile alla destinazione.
-            Più sei preciso, più punti fai.
+            Ti diamo un obiettivo e degli indizi: ruota la Terra, zooma e posiziona la puntina il
+            più vicino possibile alla destinazione. Più sei preciso, più punti fai.
           </p>
         </div>
 
@@ -348,9 +414,7 @@ export default function PlayPage() {
               key={card.mode}
               hover
               onClick={() => setSelectedMode(card.mode)}
-              className={
-                selectedMode === card.mode ? "border-emerald-500 bg-emerald-500/5" : ""
-              }
+              className={selectedMode === card.mode ? "border-emerald-500 bg-emerald-500/5" : ""}
             >
               <div className="space-y-2">
                 <div className="text-3xl">{card.icon}</div>
@@ -384,9 +448,23 @@ export default function PlayPage() {
         <Card className="!p-5">
           <h2 className="text-base font-semibold text-white mb-2">📐 Come si calcolano i punti</h2>
           <ul className="text-sm text-slate-400 space-y-1.5 list-disc pl-5">
-            <li>Distanza calcolata con la <strong className="text-slate-200">formula di Haversine</strong> (arco di cerchio massimo, raggio terrestre 6.371 km).</li>
-            <li>Punti = <strong className="text-slate-200">5.000 · e<sup>−distanza/2.000</sup></strong>: entro 25 km fai il massimo (5.000), a ~1.386 km dimezzi, agli antipodi vai a ~0.</li>
-            <li>Il primo indizio è gratuito; ogni indizio extra costa il <strong className="text-slate-200">10%</strong> dei punti del round (gratis in allenamento).</li>
+            <li>
+              Distanza calcolata con la{" "}
+              <strong className="text-slate-200">formula di Haversine</strong> (arco di cerchio
+              massimo, raggio terrestre 6.371 km).
+            </li>
+            <li>
+              Punti ={" "}
+              <strong className="text-slate-200">
+                5.000 · e<sup>−distanza/2.000</sup>
+              </strong>
+              : entro 25 km fai il massimo (5.000), a ~1.386 km dimezzi, agli antipodi vai a ~0.
+            </li>
+            <li>
+              Il primo indizio è gratuito; ogni indizio extra costa il{" "}
+              <strong className="text-slate-200">10%</strong> dei punti del round (gratis in
+              allenamento).
+            </li>
             <li>Allo scadere del timer vale la puntina già posizionata; senza puntina, 0 punti.</li>
           </ul>
         </Card>
@@ -395,7 +473,8 @@ export default function PlayPage() {
           Inizia la partita 🎮
         </Button>
         <p className="text-center text-xs text-slate-500 pb-4">
-          {LOCATIONS.length} luoghi reali · capitali, città, monumenti, natura e isole da tutti i continenti
+          {LOCATIONS.length} luoghi reali · capitali, città, monumenti, natura e isole da tutti i
+          continenti
         </p>
       </div>
     );
@@ -490,7 +569,10 @@ export default function PlayPage() {
 
               <div className="space-y-2" aria-label="Indizi">
                 {target.hints.slice(0, game.hintsShown).map((hint, i) => (
-                  <p key={i} className="text-sm text-slate-300 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2">
+                  <p
+                    key={i}
+                    className="text-sm text-slate-300 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2"
+                  >
                     <span className="text-slate-500 font-semibold mr-1.5">{i + 1}.</span>
                     {hint}
                   </p>
@@ -513,14 +595,15 @@ export default function PlayPage() {
               <div className="border-t border-slate-700/60 pt-4 space-y-3">
                 {pendingGuess ? (
                   <p className="text-sm text-cyan-200 tabular-nums">
-                    Puntina: {Math.abs(pendingGuess.lat).toFixed(2)}° {pendingGuess.lat >= 0 ? "N" : "S"},{" "}
-                    {Math.abs(pendingGuess.lng).toFixed(2)}° {pendingGuess.lng >= 0 ? "E" : "O"}
+                    Puntina: {Math.abs(pendingGuess.lat).toFixed(2)}°{" "}
+                    {pendingGuess.lat >= 0 ? "N" : "S"}, {Math.abs(pendingGuess.lng).toFixed(2)}°{" "}
+                    {pendingGuess.lng >= 0 ? "E" : "O"}
                     <span className="text-slate-400"> — clicca altrove per spostarla</span>
                   </p>
                 ) : (
                   <p className="text-sm text-slate-400">
-                    Ruota il globo e <strong className="text-slate-200">tocca/clicca</strong> il punto
-                    in cui pensi si trovi {target.name}.
+                    Ruota il globo e <strong className="text-slate-200">tocca/clicca</strong> il
+                    punto in cui pensi si trovi {target.name}.
                   </p>
                 )}
                 <Button
@@ -531,7 +614,12 @@ export default function PlayPage() {
                 >
                   ✅ Conferma la risposta
                 </Button>
-                <ManualCoordinates onPlace={(c) => { setPendingGuess(c); setFocusCoords(c); }} />
+                <ManualCoordinates
+                  onPlace={(c) => {
+                    setPendingGuess(c);
+                    setFocusCoords(c);
+                  }}
+                />
               </div>
             </Card>
           )}
@@ -548,7 +636,8 @@ export default function PlayPage() {
                     : distanceVerdict(lastResult.distanceKm!)}
                 </h2>
                 <p className="text-sm text-slate-300 mt-1">
-                  La destinazione era <strong className="text-white">{lastResult.location.name}</strong>,{" "}
+                  La destinazione era{" "}
+                  <strong className="text-white">{lastResult.location.name}</strong>,{" "}
                   {lastResult.location.country} ({continentLabel(lastResult.location.continent)}).
                 </p>
               </div>
@@ -585,9 +674,9 @@ export default function PlayPage() {
           <Card className="!p-4">
             <p className="text-xs text-slate-400 leading-relaxed">
               <strong className="text-slate-200">Controlli:</strong> trascina per ruotare ·
-              rotellina o pizzica per zoomare · tocca per posizionare la puntina.
-              Da tastiera: Tab sul globo, frecce per il mirino, Invio per puntare, +/− per lo zoom
-              (Maiusc+frecce = movimenti fini).
+              rotellina o pizzica per zoomare · tocca per posizionare la puntina. Da tastiera: Tab
+              sul globo, frecce per il mirino, Invio per puntare, +/− per lo zoom (Maiusc+frecce =
+              movimenti fini).
             </p>
           </Card>
         </div>
@@ -647,11 +736,7 @@ function OptionRow({
  * Inserimento manuale delle coordinate: alternativa accessibile al
  * puntamento sul globo (tastiera, screen reader, WebGL assente).
  */
-function ManualCoordinates({
-  onPlace,
-}: {
-  onPlace: (coords: GeoCoordinates) => void;
-}) {
+function ManualCoordinates({ onPlace }: { onPlace: (coords: GeoCoordinates) => void }) {
   const [open, setOpen] = useState(false);
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");

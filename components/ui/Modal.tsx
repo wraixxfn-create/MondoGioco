@@ -37,12 +37,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
             aria-label="Chiudi"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

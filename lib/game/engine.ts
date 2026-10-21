@@ -148,8 +148,7 @@ export function createGame(
   rng: Rng = Math.random,
   now: number = Date.now()
 ): GeoGameState {
-  const wanted =
-    config.mode === "challenge" ? config.totalRounds : 50;
+  const wanted = config.mode === "challenge" ? config.totalRounds : 50;
   const targets = pickLocations(dataset, wanted, rng);
 
   return {
@@ -161,10 +160,8 @@ export function createGame(
     hintsShown: 1,
     startedAt: now,
     roundStartedAt: now,
-    roundExpiresAt:
-      config.secondsPerRound > 0 ? now + config.secondsPerRound * 1000 : null,
-    gameExpiresAt:
-      config.totalSeconds > 0 ? now + config.totalSeconds * 1000 : null,
+    roundExpiresAt: config.secondsPerRound > 0 ? now + config.secondsPerRound * 1000 : null,
+    gameExpiresAt: config.totalSeconds > 0 ? now + config.totalSeconds * 1000 : null,
     totalScore: 0,
   };
 }
@@ -176,11 +173,7 @@ export function currentTarget(state: GeoGameState): GameLocation | undefined {
 
 /** True se il timer del round corrente è scaduto. */
 export function isRoundExpired(state: GeoGameState, now: number): boolean {
-  return (
-    state.phase === "playing" &&
-    state.roundExpiresAt !== null &&
-    now >= state.roundExpiresAt
-  );
+  return state.phase === "playing" && state.roundExpiresAt !== null && now >= state.roundExpiresAt;
 }
 
 /** True se il timer totale della partita (modalità timed) è scaduto. */
@@ -215,20 +208,14 @@ export function submitGuess(
   if (!target) return { ...state, phase: "finished" };
 
   const late = guess !== null && (isRoundExpired(state, now) || isGameExpired(state, now));
-  const validGuess =
-    guess !== null && !late && isValidCoordinates(guess) ? guess : null;
+  const validGuess = guess !== null && !late && isValidCoordinates(guess) ? guess : null;
 
   const distanceKm =
-    validGuess !== null
-      ? haversineDistanceKm(validGuess, target.coordinates)
-      : null;
+    validGuess !== null ? haversineDistanceKm(validGuess, target.coordinates) : null;
   const baseScore = distanceKm !== null ? calculateScore(distanceKm) : 0;
 
   const extraHints = Math.max(0, state.hintsShown - 1);
-  const penalty =
-    state.config.mode === "training"
-      ? 1
-      : Math.pow(HINT_PENALTY_FACTOR, extraHints);
+  const penalty = state.config.mode === "training" ? 1 : Math.pow(HINT_PENALTY_FACTOR, extraHints);
   const score = Math.round(baseScore * penalty);
 
   const result: RoundResult = {
@@ -256,17 +243,13 @@ export function submitGuess(
  * - il timer totale è scaduto (timed), oppure
  * - il giocatore ha esaurito i luoghi estratti.
  */
-export function advanceRound(
-  state: GeoGameState,
-  now: number = Date.now()
-): GeoGameState {
+export function advanceRound(state: GeoGameState, now: number = Date.now()): GeoGameState {
   if (state.phase === "finished") return state;
 
   const nextIndex = state.roundIndex + 1;
   const noMoreTargets = nextIndex >= state.targets.length;
   const roundsDone =
-    state.config.mode === "challenge" &&
-    state.results.length >= state.config.totalRounds;
+    state.config.mode === "challenge" && state.results.length >= state.config.totalRounds;
   const gameTimeOver = isGameExpired(state, now);
 
   if (noMoreTargets || roundsDone || gameTimeOver) {
@@ -280,9 +263,7 @@ export function advanceRound(
     hintsShown: 1,
     roundStartedAt: now,
     roundExpiresAt:
-      state.config.secondsPerRound > 0
-        ? now + state.config.secondsPerRound * 1000
-        : null,
+      state.config.secondsPerRound > 0 ? now + state.config.secondsPerRound * 1000 : null,
   };
 }
 
@@ -310,21 +291,15 @@ export interface GameSummary {
 }
 
 export function summarize(state: GeoGameState): GameSummary {
-  const distances = state.results
-    .map((r) => r.distanceKm)
-    .filter((d): d is number => d !== null);
+  const distances = state.results.map((r) => r.distanceKm).filter((d): d is number => d !== null);
   return {
     totalScore: state.totalScore,
     roundsPlayed: state.results.length,
     averageScore:
-      state.results.length > 0
-        ? Math.round(state.totalScore / state.results.length)
-        : 0,
+      state.results.length > 0 ? Math.round(state.totalScore / state.results.length) : 0,
     bestDistanceKm: distances.length > 0 ? Math.min(...distances) : null,
     averageDistanceKm:
-      distances.length > 0
-        ? distances.reduce((s, d) => s + d, 0) / distances.length
-        : null,
+      distances.length > 0 ? distances.reduce((s, d) => s + d, 0) / distances.length : null,
     answersGiven: distances.length,
     timeouts: state.results.filter((r) => r.timedOut).length,
     bullseyes: distances.filter((d) => d <= 100).length,

@@ -19,9 +19,7 @@ export function generateQuiz(
 ): QuizQuestion[] {
   const shuffled = shuffleArray(COUNTRIES);
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
-  return selected.map((country) =>
-    generateQuestion(country, type, difficulty, COUNTRIES)
-  );
+  return selected.map((country) => generateQuestion(country, type, difficulty, COUNTRIES));
 }
 
 function generateQuestion(
@@ -41,10 +39,7 @@ function generateQuestion(
         difficulty,
         country,
         prompt: `Qual è la capitale di ${country.name}?`,
-        options: shuffleArray([
-          country.capital,
-          ...distractors.map((d) => d.capital),
-        ]),
+        options: shuffleArray([country.capital, ...distractors.map((d) => d.capital)]),
         correctAnswer: country.capital,
         timeLimit,
       };
@@ -56,10 +51,7 @@ function generateQuestion(
         difficulty,
         country,
         prompt: `A quale paese appartiene questa bandiera? ${country.flag}`,
-        options: shuffleArray([
-          country.name,
-          ...distractors.map((d) => d.name),
-        ]),
+        options: shuffleArray([country.name, ...distractors.map((d) => d.name)]),
         correctAnswer: country.name,
         timeLimit,
       };
@@ -84,10 +76,7 @@ function generateQuestion(
         difficulty,
         country,
         prompt: `In quale continente si trova ${country.name}?`,
-        options: shuffleArray([
-          country.continent,
-          ...getContinentDistractors(country.continent),
-        ]),
+        options: shuffleArray([country.continent, ...getContinentDistractors(country.continent)]),
         correctAnswer: country.continent,
         timeLimit,
       };
@@ -103,13 +92,8 @@ function generatePopulationQuestion(
   difficulty: Difficulty
 ): QuizQuestion {
   const timeLimit = TIME_LIMITS[difficulty];
-  const options = shuffleArray([
-    country.name,
-    ...distractors.map((d) => d.name),
-  ]);
-  const sorted = [country, ...distractors].sort(
-    (a, b) => b.population - a.population
-  );
+  const options = shuffleArray([country.name, ...distractors.map((d) => d.name)]);
+  const sorted = [country, ...distractors].sort((a, b) => b.population - a.population);
   const mostPopulous = sorted[0];
 
   return {
@@ -124,23 +108,12 @@ function generatePopulationQuestion(
   };
 }
 
-function getDistractors(
-  country: Country,
-  allCountries: Country[],
-  count: number
-): Country[] {
+function getDistractors(country: Country, allCountries: Country[], count: number): Country[] {
   const others = allCountries.filter((c) => c.id !== country.id);
   return shuffleArray(others).slice(0, count);
 }
 
 function getContinentDistractors(continent: string): string[] {
-  const all = [
-    "europe",
-    "asia",
-    "africa",
-    "north_america",
-    "south_america",
-    "oceania",
-  ];
+  const all = ["europe", "asia", "africa", "north_america", "south_america", "oceania"];
   return shuffleArray(all.filter((c) => c !== continent)).slice(0, 3);
 }

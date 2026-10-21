@@ -16,9 +16,7 @@ function GlobeLoading() {
         <div className="relative w-20 h-20 mx-auto mb-4">
           <div className="absolute inset-0 rounded-full border-4 border-slate-800" />
           <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-500 animate-spin" />
-          <span className="absolute inset-0 flex items-center justify-center text-3xl">
-            🌍
-          </span>
+          <span className="absolute inset-0 flex items-center justify-center text-3xl">🌍</span>
         </div>
         <p className="text-slate-400 text-sm">Caricamento globo 3D...</p>
       </div>

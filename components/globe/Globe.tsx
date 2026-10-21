@@ -14,11 +14,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { OrbitControls, Html, Line, Stars } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import {
-  latLngToVector3,
-  vector3ToLatLng,
-  greatCircleArcPoints,
-} from "@/lib/game/geo";
+import { latLngToVector3, vector3ToLatLng, greatCircleArcPoints } from "@/lib/game/geo";
 import type { GeoCoordinates } from "@/types";
 
 // ============================================================
@@ -162,15 +158,12 @@ export function Globe({
     [selectable, onPick, onGlobeClick]
   );
 
-  const handleHover = useCallback(
-    (coords: GeoCoordinates | null) => {
-      const now = performance.now();
-      if (coords && now - lastHoverAt.current < 60) return;
-      lastHoverAt.current = now;
-      setHoverCoords(coords);
-    },
-    []
-  );
+  const handleHover = useCallback((coords: GeoCoordinates | null) => {
+    const now = performance.now();
+    if (coords && now - lastHoverAt.current < 60) return;
+    lastHoverAt.current = now;
+    setHoverCoords(coords);
+  }, []);
 
   // ---- Controllo da tastiera: reticolo mobile accessibile ----
   const handleKeyDown = useCallback(
@@ -178,10 +171,7 @@ export function Globe({
       if (!selectable) return;
       const step = e.shiftKey ? 0.25 : 2;
       const initCursor =
-        kbCursor ??
-        guessCoords ??
-        cameraBusRef.current.getFacingCoords?.() ??
-        INITIAL_FOCUS;
+        kbCursor ?? guessCoords ?? cameraBusRef.current.getFacingCoords?.() ?? INITIAL_FOCUS;
 
       let next: GeoCoordinates | null = null;
       switch (e.key) {
@@ -269,11 +259,23 @@ export function Globe({
         {/* Alone atmosferico */}
         <mesh scale={[1.14, 1.14, 1.14]}>
           <sphereGeometry args={[1, 48, 48]} />
-          <meshBasicMaterial color="#38bdf8" transparent opacity={0.07} side={THREE.BackSide} depthWrite={false} />
+          <meshBasicMaterial
+            color="#38bdf8"
+            transparent
+            opacity={0.07}
+            side={THREE.BackSide}
+            depthWrite={false}
+          />
         </mesh>
 
         {markers.map((m) => (
-          <SurfaceMarker key={m.id} coords={{ lat: m.lat, lng: m.lng }} color={m.color ?? "#10b981"} label={m.label} size={m.size} />
+          <SurfaceMarker
+            key={m.id}
+            coords={{ lat: m.lat, lng: m.lng }}
+            color={m.color ?? "#10b981"}
+            label={m.label}
+            size={m.size}
+          />
         ))}
 
         {kbCursor && selectable && (
@@ -285,12 +287,16 @@ export function Globe({
         )}
 
         {effectiveTarget && (
-          <SurfaceMarker coords={effectiveTarget} color="#fbbf24" size={0.034} label={targetLabel} pulse />
+          <SurfaceMarker
+            coords={effectiveTarget}
+            color="#fbbf24"
+            size={0.034}
+            label={targetLabel}
+            pulse
+          />
         )}
 
-        {guessCoords && effectiveTarget && (
-          <GuessArc from={guessCoords} to={effectiveTarget} />
-        )}
+        {guessCoords && effectiveTarget && <GuessArc from={guessCoords} to={effectiveTarget} />}
 
         <CameraRig
           bus={cameraBusRef}
@@ -312,8 +318,8 @@ export function Globe({
           role="alert"
           className="absolute top-3 left-3 right-3 sm:right-auto bg-amber-500/15 border border-amber-500/50 text-amber-200 rounded-xl px-3 py-2 text-xs pointer-events-none"
         >
-          ⚠️ Texture della Terra non disponibile: visualizzazione semplificata
-          con griglia latitudine/longitudine. La selezione resta precisa.
+          ⚠️ Texture della Terra non disponibile: visualizzazione semplificata con griglia
+          latitudine/longitudine. La selezione resta precisa.
         </div>
       )}
 
@@ -457,15 +463,11 @@ function EarthMesh({
   const activeMap = texture ?? graticuleTexture ?? undefined;
 
   return (
-    <mesh
-      onClick={handleClick}
-      onPointerMove={handleMove}
-      onPointerOut={() => onHover(null)}
-    >
+    <mesh onClick={handleClick} onPointerMove={handleMove} onPointerOut={() => onHover(null)}>
       <sphereGeometry args={[1, segments, segments]} />
       <meshStandardMaterial
         map={activeMap}
-        normalMap={texture ? normalTexture ?? undefined : undefined}
+        normalMap={texture ? (normalTexture ?? undefined) : undefined}
         normalScale={new THREE.Vector2(0.6, 0.6)}
         color={activeMap ? "#ffffff" : "#0a3d62"}
         roughness={0.85}
@@ -529,10 +531,23 @@ function SurfaceMarker({
       )}
       <mesh ref={ringRef} position={[0, 0, 0.002]}>
         <ringGeometry args={[size * 1.7, size * 2.1, 40]} />
-        <meshBasicMaterial color={color} transparent opacity={0.85} side={THREE.DoubleSide} depthWrite={false} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.85}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+        />
       </mesh>
       {label && (
-        <Html position={[0, 0, size * 3.4]} center distanceFactor={7} occlude="raycast" zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+        <Html
+          position={[0, 0, size * 3.4]}
+          center
+          distanceFactor={7}
+          occlude="raycast"
+          zIndexRange={[20, 0]}
+          style={{ pointerEvents: "none" }}
+        >
           <div className="bg-slate-900/90 border border-slate-600 rounded-lg px-2 py-0.5 text-[11px] font-medium text-white whitespace-nowrap shadow-lg">
             {label}
           </div>
@@ -547,10 +562,7 @@ function SurfaceMarker({
 // ============================================================
 
 function GuessArc({ from, to }: { from: GeoCoordinates; to: GeoCoordinates }) {
-  const points = useMemo(
-    () => greatCircleArcPoints(from, to, 64, 1.006),
-    [from, to]
-  );
+  const points = useMemo(() => greatCircleArcPoints(from, to, 64, 1.006), [from, to]);
   if (points.length < 2) return null;
   return (
     <Line
@@ -588,9 +600,7 @@ function CameraRig({
 
   const animateTo = useCallback(
     (coords: GeoCoordinates, durationSec = 1.1, distance?: number) => {
-      const dist =
-        distance ??
-        Math.min(MAX_DISTANCE, Math.max(2.1, camera.position.length()));
+      const dist = distance ?? Math.min(MAX_DISTANCE, Math.max(2.1, camera.position.length()));
       animRef.current = {
         from: camera.position.clone(),
         to: new THREE.Vector3(...latLngToVector3(coords.lat, coords.lng, dist)),
@@ -603,8 +613,7 @@ function CameraRig({
   );
 
   useEffect(() => {
-    bus.current.requestFocus = (coords, durationSec = 1.1) =>
-      animateTo(coords, durationSec);
+    bus.current.requestFocus = (coords, durationSec = 1.1) => animateTo(coords, durationSec);
     bus.current.zoomBy = (factor) => {
       const current = camera.position.length();
       const next = Math.min(MAX_DISTANCE, Math.max(MIN_DISTANCE, current * factor));
@@ -624,10 +633,7 @@ function CameraRig({
     if (!anim) return;
     anim.t = Math.min(1, anim.t + delta / anim.duration);
     // easeInOutCubic
-    const e =
-      anim.t < 0.5
-        ? 4 * anim.t * anim.t * anim.t
-        : 1 - Math.pow(-2 * anim.t + 2, 3) / 2;
+    const e = anim.t < 0.5 ? 4 * anim.t * anim.t * anim.t : 1 - Math.pow(-2 * anim.t + 2, 3) / 2;
     // Slerp direzionale + interpolazione del raggio
     const fromDir = anim.from.clone().normalize();
     const toDir = anim.to.clone().normalize();
@@ -701,12 +707,11 @@ export function GlobeContainer(props: GlobeProps) {
       <div className="text-center p-8 max-w-sm">
         <div className="text-5xl mb-4">🌍</div>
         <p className="text-slate-300 text-sm font-medium">
-          Il globo 3D non può essere avviato su questo dispositivo
-          (WebGL non disponibile).
+          Il globo 3D non può essere avviato su questo dispositivo (WebGL non disponibile).
         </p>
         <p className="text-slate-500 text-xs mt-2">
-          Puoi comunque giocare inserendo le coordinate a mano dal pannello
-          di risposta, oppure prova un browser più recente.
+          Puoi comunque giocare inserendo le coordinate a mano dal pannello di risposta, oppure
+          prova un browser più recente.
         </p>
       </div>
     </div>

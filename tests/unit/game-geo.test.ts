@@ -109,10 +109,7 @@ describe("Haversine — distanze note tra città reali", () => {
   });
 
   it("è simmetrica", () => {
-    expect(haversineDistanceKm(Roma, Sydney)).toBeCloseTo(
-      haversineDistanceKm(Sydney, Roma),
-      9
-    );
+    expect(haversineDistanceKm(Roma, Sydney)).toBeCloseTo(haversineDistanceKm(Sydney, Roma), 9);
   });
 
   it("antipodi ≈ mezza circonferenza terrestre (π·R)", () => {

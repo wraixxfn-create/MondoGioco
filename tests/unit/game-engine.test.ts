@@ -46,22 +46,24 @@ describe("creazione partita e determinismo", () => {
   });
 
   it("dataset vuoto → EmptyDatasetError gestibile dalla UI", () => {
-    expect(() => createGame([], challengeConfig(), Math.random, T0)).toThrow(
-      EmptyDatasetError
-    );
+    expect(() => createGame([], challengeConfig(), Math.random, T0)).toThrow(EmptyDatasetError);
     expect(() => pickLocations([], 5, Math.random)).toThrow(EmptyDatasetError);
   });
 
   it("dataset con sole coordinate invalide → EmptyDatasetError", () => {
     const broken: GameLocation[] = [
       {
-        id: "x", name: "X", country: "Y", continent: "europe", category: "city",
-        difficulty: 1, coordinates: { lat: 200, lng: 999 }, hints: ["a", "b"],
+        id: "x",
+        name: "X",
+        country: "Y",
+        continent: "europe",
+        category: "city",
+        difficulty: 1,
+        coordinates: { lat: 200, lng: 999 },
+        hints: ["a", "b"],
       },
     ];
-    expect(() => createGame(broken, challengeConfig(), Math.random, T0)).toThrow(
-      EmptyDatasetError
-    );
+    expect(() => createGame(broken, challengeConfig(), Math.random, T0)).toThrow(EmptyDatasetError);
   });
 
   it("imposta correttamente le scadenze dei timer", () => {
@@ -95,7 +97,11 @@ describe("risposte e punteggi", () => {
     let g = createGame(LOCATIONS, challengeConfig(3), createSeededRng(12), T0);
     const target = currentTarget(g)!;
     // risposta agli antipodi approssimativi
-    const antipode = { lat: -target.coordinates.lat, lng: target.coordinates.lng >= 0 ? target.coordinates.lng - 180 : target.coordinates.lng + 180 };
+    const antipode = {
+      lat: -target.coordinates.lat,
+      lng:
+        target.coordinates.lng >= 0 ? target.coordinates.lng - 180 : target.coordinates.lng + 180,
+    };
     g = submitGuess(g, antipode, T0 + 10_000);
     expect(g.results[0].distanceKm!).toBeGreaterThan(18000);
     expect(g.results[0].score).toBeLessThan(5);

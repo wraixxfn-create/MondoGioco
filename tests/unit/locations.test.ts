@@ -57,14 +57,10 @@ describe("dataset delle località (validazione automatica)", () => {
   it("nessuna coppia di obiettivi è a meno di 40 km (round non ambigui)", () => {
     for (let i = 0; i < LOCATIONS.length; i++) {
       for (let j = i + 1; j < LOCATIONS.length; j++) {
-        const d = haversineDistanceKm(
-          LOCATIONS[i].coordinates,
-          LOCATIONS[j].coordinates
+        const d = haversineDistanceKm(LOCATIONS[i].coordinates, LOCATIONS[j].coordinates);
+        expect(d, `${LOCATIONS[i].id} ↔ ${LOCATIONS[j].id}: ${d.toFixed(1)} km`).toBeGreaterThan(
+          40
         );
-        expect(
-          d,
-          `${LOCATIONS[i].id} ↔ ${LOCATIONS[j].id}: ${d.toFixed(1)} km`
-        ).toBeGreaterThan(40);
       }
     }
   });

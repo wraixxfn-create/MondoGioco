@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { COUNTRIES, getCountryById, getCountriesByContinent, getAllCapitals } from "@/data/countries";
+import {
+  COUNTRIES,
+  getCountryById,
+  getCountriesByContinent,
+  getAllCapitals,
+} from "@/data/countries";
 
 describe("COUNTRIES dataset", () => {
   it("contiene almeno 40 paesi", () => {

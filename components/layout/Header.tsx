@@ -31,9 +31,7 @@ export function Header() {
             <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               🌍
             </div>
-            <span className="text-xl font-bold gradient-text hidden sm:block">
-              MondoGioco
-            </span>
+            <span className="text-xl font-bold gradient-text hidden sm:block">MondoGioco</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -59,12 +57,7 @@ export function Header() {
             className="md:hidden p-2 rounded-lg hover:bg-slate-800 text-slate-300"
             aria-label="Toggle menu"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileMenuOpen ? (
                 <path
                   strokeLinecap="round"

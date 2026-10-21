@@ -11,9 +11,7 @@ test.describe("Gioco geografico — flusso completo", () => {
     await page.goto("/play");
 
     // Menu modalità
-    await expect(
-      page.getByRole("heading", { name: /Trova il luogo sul globo/i })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Trova il luogo sul globo/i })).toBeVisible();
     await expect(page.getByText(/Come si calcolano i punti/i)).toBeVisible();
 
     // Allenamento libero (nessun timer: test deterministico)
@@ -30,9 +28,7 @@ test.describe("Gioco geografico — flusso completo", () => {
     await expect(confirm).toBeDisabled();
 
     // Posiziono la puntina su Roma e Parigi con le coordinate manuali
-    await page
-      .getByRole("button", { name: /inserisci latitudine e longitudine/i })
-      .click();
+    await page.getByRole("button", { name: /inserisci latitudine e longitudine/i }).click();
     await page.getByLabel("Latitudine").fill("41,90");
     await page.getByLabel("Longitudine").fill("12,50");
     await page.getByRole("button", { name: /Posiziona la puntina/i }).click();
@@ -51,22 +47,16 @@ test.describe("Gioco geografico — flusso completo", () => {
 
     // Termino e verifico il riepilogo finale
     await page.getByRole("button", { name: /Termina/i }).click();
-    await expect(
-      page.getByRole("heading", { name: /Partita terminata/i })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Partita terminata/i })).toBeVisible();
     await expect(page.getByText(/Dettaglio dei round/i)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /Gioca ancora/i })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Gioca ancora/i })).toBeVisible();
   });
 
   test("coordinate manuali non valide mostrano un errore", async ({ page }) => {
     await page.goto("/play");
     await page.getByText("Allenamento libero").click();
     await page.getByRole("button", { name: /Inizia la partita/i }).click();
-    await page
-      .getByRole("button", { name: /inserisci latitudine e longitudine/i })
-      .click();
+    await page.getByRole("button", { name: /inserisci latitudine e longitudine/i }).click();
     await page.getByLabel("Latitudine").fill("999");
     await page.getByLabel("Longitudine").fill("0");
     await page.getByRole("button", { name: /Posiziona la puntina/i }).click();
@@ -86,9 +76,7 @@ test.describe("Gioco geografico — flusso completo", () => {
 test.describe("Viewport mobile", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
 
-  test("il gioco è usabile su smartphone senza overflow orizzontale", async ({
-    page,
-  }) => {
+  test("il gioco è usabile su smartphone senza overflow orizzontale", async ({ page }) => {
     await page.goto("/play");
     await page.getByText("Allenamento libero").tap();
     await page.getByRole("button", { name: /Inizia la partita/i }).tap();
@@ -103,8 +91,6 @@ test.describe("Viewport mobile", () => {
     expect(overflow).toBeLessThanOrEqual(1);
 
     // I pulsanti zoom touch sono presenti e tappabili
-    await expect(
-      page.getByRole("button", { name: /Avvicina/i })
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Avvicina/i })).toBeVisible();
   });
 });

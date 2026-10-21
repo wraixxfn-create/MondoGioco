@@ -28,11 +28,7 @@ export function calculateLevel(xp: number): LevelInfo {
  * Calcola i punti guadagnati in base alla velocità di risposta.
  * Base: 100 punti, bonus tempo fino a 100 punti extra.
  */
-export function calculatePoints(
-  isCorrect: boolean,
-  timeSpent: number,
-  timeLimit: number
-): number {
+export function calculatePoints(isCorrect: boolean, timeSpent: number, timeLimit: number): number {
   if (!isCorrect) return 0;
   const basePoints = 100;
   const timeBonus = Math.max(0, Math.floor((1 - timeSpent / timeLimit) * 100));
@@ -89,12 +85,7 @@ export function latLngToVector3(
 /**
  * Calcola la distanza approssimativa in km tra due punti usando la formula di Haversine.
  */
-export function haversineDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
+export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371; // Raggio terrestre in km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
