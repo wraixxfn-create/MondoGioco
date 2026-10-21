@@ -147,6 +147,7 @@ MondoGioco/
 │   └── database.ts               # Tipi database Supabase
 │
 ├── data/                         # Dati statici
+│   ├── locations.ts              # 130+ luoghi del gioco sul globo (indizi originali)
 │   └── countries.ts              # Dataset paesi
 │
 ├── tests/
@@ -292,8 +293,16 @@ Contribuzioni sono benvenute! Per contribuire:
 
 Questo progetto è distribuito con licenza MIT. Vedi il file `LICENSE` per maggiori dettagli.
 
+## 📚 Dati, texture e licenze
+
+- **Texture della Terra**: NASA Visible Earth "Blue Marble" — **pubblico dominio**, servita in locale da `public/textures/` (nessuna dipendenza da CDN esterne a runtime; se il file non fosse disponibile, il globo passa a una visualizzazione semplificata dichiarata in UI).
+- **Coordinate e nomi dei luoghi**: dati fattuali allineati a Natural Earth (pubblico dominio) e GeoNames (CC BY 4.0). Dettagli e attribuzioni complete in [`CREDITS.md`](CREDITS.md).
+- **Indizi**: testi originali scritti per MondoGioco.
+
 ## 🙏 Ringraziamenti
 
+- **NASA Visible Earth** — Texture Blue Marble (pubblico dominio)
+- **Natural Earth / GeoNames** — Dati geografici aperti
 - **Next.js** — Framework React
 - **React Three Fiber** — Rendering 3D
 - **Supabase** — Backend as a Service
