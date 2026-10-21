@@ -9,12 +9,10 @@ export default function HomePage() {
     <div className="space-y-12">
       {/* Hero Section */}
       <section className="text-center space-y-6 pt-8">
-        <h1 className="text-5xl md:text-6xl font-bold gradient-text">
-          Esplora il Mondo
-        </h1>
+        <h1 className="text-5xl md:text-6xl font-bold gradient-text">Esplora il Mondo</h1>
         <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-          Impara la geografia giocando. Quiz interattivi, sfide multiplayer e un
-          globo 3D da esplorare.
+          Impara la geografia giocando. Quiz interattivi, sfide multiplayer e un globo 3D da
+          esplorare.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
           <Link href="/play">
@@ -44,8 +42,7 @@ export default function HomePage() {
             icon={<span className="text-2xl">🎯</span>}
           />
           <p className="text-sm text-slate-400">
-            Metti alla prova le tue conoscenze con quiz su misura per ogni
-            livello di difficoltà.
+            Metti alla prova le tue conoscenze con quiz su misura per ogni livello di difficoltà.
           </p>
         </Card>
 
@@ -56,8 +53,8 @@ export default function HomePage() {
             icon={<span className="text-2xl">🌍</span>}
           />
           <p className="text-sm text-slate-400">
-            Ruota e zooma la Terra con mouse, touch o tastiera: ogni click è
-            convertito in coordinate geografiche reali.
+            Ruota e zooma la Terra con mouse, touch o tastiera: ogni click è convertito in
+            coordinate geografiche reali.
           </p>
         </Card>
 
@@ -68,8 +65,7 @@ export default function HomePage() {
             icon={<span className="text-2xl">👥</span>}
           />
           <p className="text-sm text-slate-400">
-            Crea stanze private o unisciti a partite pubbliche per competere in
-            tempo reale.
+            Crea stanze private o unisciti a partite pubbliche per competere in tempo reale.
           </p>
         </Card>
 
@@ -80,8 +76,7 @@ export default function HomePage() {
             icon={<span className="text-2xl">🏆</span>}
           />
           <p className="text-sm text-slate-400">
-            Guadagna punti, sali di livello e conquista le prime posizioni della
-            classifica.
+            Guadagna punti, sali di livello e conquista le prime posizioni della classifica.
           </p>
         </Card>
 
@@ -92,8 +87,7 @@ export default function HomePage() {
             icon={<span className="text-2xl">📚</span>}
           />
           <p className="text-sm text-slate-400">
-            Studia i paesi del mondo in modalità allenamento, senza timer né
-            punteggio.
+            Studia i paesi del mondo in modalità allenamento, senza timer né punteggio.
           </p>
         </Card>
 
@@ -104,20 +98,17 @@ export default function HomePage() {
             icon={<span className="text-2xl">📈</span>}
           />
           <p className="text-sm text-slate-400">
-            Monitora le tue statistiche, i punti guadagnati e i record
-            personali.
+            Monitora le tue statistiche, i punti guadagnati e i record personali.
           </p>
         </Card>
       </section>
 
       {/* CTA Section */}
       <section className="text-center space-y-4 py-12">
-        <h2 className="text-3xl font-bold text-white">
-          Pronto a partire per il tuo viaggio?
-        </h2>
+        <h2 className="text-3xl font-bold text-white">Pronto a partire per il tuo viaggio?</h2>
         <p className="text-slate-400 max-w-xl mx-auto">
-          Crea un account gratuito e inizia subito a giocare. Salva i tuoi
-          progressi e sfida i tuoi amici.
+          Crea un account gratuito e inizia subito a giocare. Salva i tuoi progressi e sfida i tuoi
+          amici.
         </p>
         <div className="pt-4">
           <Link href="/profile">

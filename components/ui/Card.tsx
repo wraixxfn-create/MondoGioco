@@ -9,12 +9,7 @@ interface CardProps {
   onClick?: () => void;
 }
 
-export function Card({
-  children,
-  className = "",
-  hover = false,
-  onClick,
-}: CardProps) {
+export function Card({ children, className = "", hover = false, onClick }: CardProps) {
   return (
     <div
       onClick={onClick}
@@ -59,9 +54,7 @@ export function CardHeader({ title, description, icon }: CardHeaderProps) {
       )}
       <div>
         <h3 className="text-lg font-bold text-white">{title}</h3>
-        {description && (
-          <p className="text-sm text-slate-400 mt-0.5">{description}</p>
-        )}
+        {description && <p className="text-sm text-slate-400 mt-0.5">{description}</p>}
       </div>
     </div>
   );

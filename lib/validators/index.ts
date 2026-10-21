@@ -17,21 +17,12 @@ export const usernameSchema = z
 
 export const emailSchema = z.string().email("Email non valida");
 
-export const quizTypeSchema = z.enum([
-  "capital",
-  "flag",
-  "location",
-  "population",
-  "continent",
-]);
+export const quizTypeSchema = z.enum(["capital", "flag", "location", "population", "continent"]);
 
 export const difficultySchema = z.enum(["easy", "medium", "hard"]);
 
 export const createRoomSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Il nome della stanza deve avere almeno 3 caratteri")
-    .max(50),
+  name: z.string().min(3, "Il nome della stanza deve avere almeno 3 caratteri").max(50),
   quizType: quizTypeSchema,
   difficulty: difficultySchema,
   maxPlayers: z.number().int().min(2).max(8),
@@ -39,10 +30,7 @@ export const createRoomSchema = z.object({
 });
 
 export const joinRoomSchema = z.object({
-  code: z
-    .string()
-    .length(6, "Il codice stanza deve avere 6 caratteri")
-    .toUpperCase(),
+  code: z.string().length(6, "Il codice stanza deve avere 6 caratteri").toUpperCase(),
 });
 
 export const playerAnswerSchema = z.object({

@@ -22,13 +22,7 @@ export interface Country {
 }
 
 export type Continent =
-  | "europe"
-  | "asia"
-  | "africa"
-  | "north_america"
-  | "south_america"
-  | "oceania"
-  | "antarctica";
+  "europe" | "asia" | "africa" | "north_america" | "south_america" | "oceania" | "antarctica";
 
 /** Tipo di quiz supportati */
 export type QuizType = "capital" | "flag" | "location" | "population" | "continent";
@@ -138,12 +132,7 @@ export interface RealtimeGameState {
 }
 
 /** Categoria di un luogo nel gioco geografico sul globo */
-export type LocationCategory =
-  | "capital"
-  | "city"
-  | "monument"
-  | "nature"
-  | "island";
+export type LocationCategory = "capital" | "city" | "monument" | "nature" | "island";
 
 /** Un luogo reale usabile come obiettivo di un round sul globo */
 export interface GameLocation {

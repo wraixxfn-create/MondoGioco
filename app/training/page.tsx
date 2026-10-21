@@ -13,8 +13,7 @@ export default function TrainingPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredCountries = COUNTRIES.filter((country) => {
-    const matchesContinent =
-      selectedContinent === "all" || country.continent === selectedContinent;
+    const matchesContinent = selectedContinent === "all" || country.continent === selectedContinent;
     const matchesSearch =
       country.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       country.capital.toLowerCase().includes(searchQuery.toLowerCase());
@@ -88,12 +87,8 @@ export default function TrainingPage() {
             <div className="flex items-center gap-4">
               <span className="text-5xl">{selectedCountry.flag}</span>
               <div>
-                <h2 className="text-2xl font-bold text-white">
-                  {selectedCountry.name}
-                </h2>
-                <p className="text-slate-400">
-                  Capitale: {selectedCountry.capital}
-                </p>
+                <h2 className="text-2xl font-bold text-white">{selectedCountry.name}</h2>
+                <p className="text-slate-400">Capitale: {selectedCountry.capital}</p>
               </div>
             </div>
             <button
@@ -102,7 +97,12 @@ export default function TrainingPage() {
               aria-label="Chiudi"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -129,7 +129,8 @@ export default function TrainingPage() {
             <div>
               <p className="text-xs text-slate-500 uppercase mb-1">Coordinate</p>
               <p className="text-sm font-semibold text-white">
-                {selectedCountry.coordinates.lat.toFixed(1)}°, {selectedCountry.coordinates.lng.toFixed(1)}°
+                {selectedCountry.coordinates.lat.toFixed(1)}°,{" "}
+                {selectedCountry.coordinates.lng.toFixed(1)}°
               </p>
             </div>
           </div>
@@ -139,21 +140,12 @@ export default function TrainingPage() {
       {/* Lista Paesi */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCountries.map((country) => (
-          <Card
-            key={country.id}
-            hover
-            onClick={() => setSelectedCountry(country)}
-            className="!p-4"
-          >
+          <Card key={country.id} hover onClick={() => setSelectedCountry(country)} className="!p-4">
             <div className="flex items-center gap-3">
               <span className="text-3xl">{country.flag}</span>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-white truncate">
-                  {country.name}
-                </p>
-                <p className="text-sm text-slate-400 truncate">
-                  {country.capital}
-                </p>
+                <p className="font-semibold text-white truncate">{country.name}</p>
+                <p className="text-sm text-slate-400 truncate">{country.capital}</p>
               </div>
             </div>
           </Card>

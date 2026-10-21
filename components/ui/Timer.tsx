@@ -39,21 +39,13 @@ export function Timer({ seconds, total }: TimerProps) {
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             className={`transition-all duration-1000 ease-linear ${
-              isCritical
-                ? "text-red-500"
-                : isLow
-                ? "text-amber-500"
-                : "text-emerald-500"
+              isCritical ? "text-red-500" : isLow ? "text-amber-500" : "text-emerald-500"
             }`}
           />
         </svg>
         <span
           className={`absolute inset-0 flex items-center justify-center text-sm font-bold ${
-            isCritical
-              ? "text-red-400 animate-pulse"
-              : isLow
-              ? "text-amber-400"
-              : "text-white"
+            isCritical ? "text-red-400 animate-pulse" : isLow ? "text-amber-400" : "text-white"
           }`}
         >
           {seconds}

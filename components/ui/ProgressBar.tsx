@@ -16,12 +16,7 @@ const colorStyles: Record<string, string> = {
   red: "from-red-500 to-rose-500",
 };
 
-export function ProgressBar({
-  value,
-  label,
-  color = "emerald",
-  size = "md",
-}: ProgressBarProps) {
+export function ProgressBar({ value, label, color = "emerald", size = "md" }: ProgressBarProps) {
   const clampedValue = Math.min(100, Math.max(0, value));
   const height = size === "sm" ? "h-2" : "h-3";
 
@@ -30,9 +25,7 @@ export function ProgressBar({
       {label && (
         <div className="flex justify-between items-center mb-1.5">
           <span className="text-sm text-slate-400">{label}</span>
-          <span className="text-sm font-semibold text-white">
-            {Math.round(clampedValue)}%
-          </span>
+          <span className="text-sm font-semibold text-white">{Math.round(clampedValue)}%</span>
         </div>
       )}
       <div

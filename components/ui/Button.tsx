@@ -12,10 +12,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 const variantStyles: Record<string, string> = {
   primary:
     "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-lg shadow-emerald-500/20",
-  secondary:
-    "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700",
-  ghost:
-    "bg-transparent hover:bg-slate-800/50 text-slate-300",
+  secondary: "bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700",
+  ghost: "bg-transparent hover:bg-slate-800/50 text-slate-300",
   danger:
     "bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-lg shadow-red-500/20",
 };

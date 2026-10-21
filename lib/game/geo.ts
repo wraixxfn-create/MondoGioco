@@ -47,10 +47,7 @@ const RAD_TO_DEG = 180 / Math.PI;
  * Verifica che una coppia di coordinate sia valida:
  * latitudine in [-90, 90], longitudine in [-180, 180], entrambi finiti.
  */
-export function isValidCoordinates(coords: {
-  lat: number;
-  lng: number;
-}): boolean {
+export function isValidCoordinates(coords: { lat: number; lng: number }): boolean {
   return (
     Number.isFinite(coords.lat) &&
     Number.isFinite(coords.lng) &&
@@ -99,11 +96,7 @@ export function latLngToVector3(
  * Il punto non deve essere l'origine; la distanza dall'origine
  * viene ignorata (si proietta sulla sfera).
  */
-export function vector3ToLatLng(point: {
-  x: number;
-  y: number;
-  z: number;
-}): GeoCoordinates {
+export function vector3ToLatLng(point: { x: number; y: number; z: number }): GeoCoordinates {
   const r = Math.sqrt(point.x ** 2 + point.y ** 2 + point.z ** 2);
   if (r === 0 || !Number.isFinite(r)) {
     return { lat: 0, lng: 0 };
@@ -127,17 +120,12 @@ export function vector3ToLatLng(point: {
  * L'approssimazione sferica introduce un errore < 0,5% rispetto
  * all'ellissoide WGS84: più che sufficiente per il gameplay.
  */
-export function haversineDistanceKm(
-  a: GeoCoordinates,
-  b: GeoCoordinates
-): number {
+export function haversineDistanceKm(a: GeoCoordinates, b: GeoCoordinates): number {
   const dLat = (b.lat - a.lat) * DEG_TO_RAD;
   const dLng = (b.lng - a.lng) * DEG_TO_RAD;
   const lat1 = a.lat * DEG_TO_RAD;
   const lat2 = b.lat * DEG_TO_RAD;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   const clamped = Math.min(1, Math.max(0, h));
   const c = 2 * Math.atan2(Math.sqrt(clamped), Math.sqrt(1 - clamped));
   return EARTH_RADIUS_KM * c;
@@ -195,10 +183,7 @@ export function formatDistance(distanceKm: number): string {
   }
   // Raggruppamento migliaia manuale (stile it-IT): Intl.NumberFormat
   // non è deterministico tra ambienti con ICU ridotto (es. Node small-icu).
-  const grouped = String(Math.round(distanceKm)).replace(
-    /\B(?=(\d{3})+(?!\d))/g,
-    "."
-  );
+  const grouped = String(Math.round(distanceKm)).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${grouped} km`;
 }
 
@@ -206,10 +191,7 @@ export function formatDistance(distanceKm: number): string {
  * Punto intermedio (midpoint) lungo l'arco di cerchio massimo tra
  * due coordinate: utile per centrare la camera nel reveal del risultato.
  */
-export function greatCircleMidpoint(
-  a: GeoCoordinates,
-  b: GeoCoordinates
-): GeoCoordinates {
+export function greatCircleMidpoint(a: GeoCoordinates, b: GeoCoordinates): GeoCoordinates {
   const [ax, ay, az] = latLngToVector3(a.lat, a.lng, 1);
   const [bx, by, bz] = latLngToVector3(b.lat, b.lng, 1);
   const mx = ax + bx;
@@ -233,10 +215,7 @@ export function greatCircleArcPoints(
 ): [number, number, number][] {
   const va = latLngToVector3(a.lat, a.lng, 1);
   const vb = latLngToVector3(b.lat, b.lng, 1);
-  const dot = Math.max(
-    -1,
-    Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2])
-  );
+  const dot = Math.max(-1, Math.min(1, va[0] * vb[0] + va[1] * vb[1] + va[2] * vb[2]));
   const angle = Math.acos(dot);
   if (angle < 1e-6) {
     return [latLngToVector3(a.lat, a.lng, baseRadius)];
