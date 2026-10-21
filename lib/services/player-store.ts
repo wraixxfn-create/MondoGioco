@@ -1,4 +1,5 @@
-import { createClient, OFFLINE_ERROR_MESSAGE } from "@/lib/supabase/client";
+import { getBrowserClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { calculateLevel } from "@/lib/utils";
 import { v4FallbackId } from "@/lib/utils/id";
 
@@ -242,49 +243,28 @@ export function computeXpGain(input: GameResultInput): number {
 }
 
 /**
- * Sincronizza il profilo del giocatore su Supabase (tabella `player_profiles`
- * e, se autenticato, anche `profiles`).
+ * Sincronizza il nickname del giocatore autenticato su Supabase.
+ *
+ * I punteggi NON vengono più inviati come totali assoluti: passano dalla RPC
+ * `record_solo_game`, che valida e limita gli incrementi lato server.
+ * I giocatori ospiti restano solo locali (nessun finto salvataggio cloud).
  */
 export async function syncPlayerToCloud(player: LocalPlayerState): Promise<boolean> {
+  if (!isSupabaseConfigured || !player.authUserId) return false;
   try {
-    const supabase = createClient();
-    const level = calculateLevel(player.xp).level;
-    const { error } = await supabase.from("player_profiles").upsert(
-      {
-        player_id: player.playerId,
-        auth_user_id: player.authUserId,
-        username: player.username,
-        total_score: player.totalScore,
-        games_played: player.gamesPlayed,
-        games_won: player.gamesWon,
-        best_streak: player.bestStreak,
-        bullseyes: player.bullseyes,
-        level,
-        xp: player.xp,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "player_id" }
-    );
-    if (error) return false;
+    const supabase = getBrowserClient();
+    if (!supabase) return false;
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return false;
 
-    if (player.authUserId) {
-      await supabase.from("profiles").upsert(
-        {
-          id: player.authUserId,
-          username: player.username,
-          email: player.email ?? "",
-          total_score: player.totalScore,
-          games_played: player.gamesPlayed,
-          games_won: player.gamesWon,
-          best_streak: player.bestStreak,
-          level,
-          xp: player.xp,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
+    const { data: profile, error: profileError } = await supabase.rpc("get_my_profile");
+    if (profileError) return false;
+    if (profile && typeof profile === "object" && !Array.isArray(profile)) {
+      if ((profile as { username?: string }).username === player.username) return true;
     }
-    return true;
+
+    const { error } = await supabase.rpc("set_username", { p_username: player.username });
+    return !error;
   } catch {
     return false;
   }
@@ -327,23 +307,26 @@ export async function recordGameResult(
   };
   appendLocalSession(sessionEntry);
 
+  if (!isSupabaseConfigured || !next.authUserId) {
+    return { player: next, xpEarned, synced: false };
+  }
+
   try {
-    const supabase = createClient();
-    const [profileOk, sessionRes] = await Promise.all([
-      syncPlayerToCloud(next),
-      supabase.from("game_sessions").insert({
-        user_id: next.authUserId,
-        player_id: next.playerId,
-        username: next.username,
-        quiz_type: sessionEntry.quizType,
-        difficulty: sessionEntry.difficulty,
-        total_score: sessionEntry.totalScore,
-        questions_answered: sessionEntry.questionsAnswered,
-        correct_answers: sessionEntry.correctAnswers,
-        ended_at: endedAt,
-      }),
-    ]);
-    return { player: next, xpEarned, synced: profileOk && !sessionRes.error };
+    const supabase = getBrowserClient();
+    if (!supabase) return { player: next, xpEarned, synced: false };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return { player: next, xpEarned, synced: false };
+
+    // Il server valida punteggio, round, risposte corrette e XP.
+    const { error } = await supabase.rpc("record_solo_game", {
+      p_mode: sessionEntry.quizType,
+      p_difficulty: sessionEntry.difficulty,
+      p_score: sessionEntry.totalScore,
+      p_rounds: sessionEntry.questionsAnswered,
+      p_correct: sessionEntry.correctAnswers,
+      p_xp: xpEarned,
+    });
+    return { player: next, xpEarned, synced: !error };
   } catch {
     return { player: next, xpEarned, synced: false };
   }
@@ -352,12 +335,14 @@ export async function recordGameResult(
 export async function renamePlayer(
   rawUsername: string
 ): Promise<{ ok: boolean; player: LocalPlayerState; error?: string }> {
-  const cleaned = rawUsername.trim();
-  if (cleaned.length < 2 || cleaned.length > 24) {
+  const cleaned = rawUsername.trim().replace(/[\x00-\x1F\x7F]/g, "");
+  // Stesse regole del server (RPC `set_username`), così non si creano
+  // discrepanze tra profilo locale e profilo cloud.
+  if (!/^[A-Za-z0-9_][A-Za-z0-9_ -]{2,19}$/.test(cleaned)) {
     return {
       ok: false,
       player: loadLocalPlayer(),
-      error: "Il nome giocatore deve avere tra 2 e 24 caratteri.",
+      error: "Il nome deve avere 3-20 caratteri: lettere, numeri, spazi, trattini o underscore.",
     };
   }
   const updated: LocalPlayerState = {
@@ -371,36 +356,48 @@ export async function renamePlayer(
   return { ok: true, player: updated };
 }
 
+function rankEntries(
+  items: Omit<LeaderboardRow, "rank" | "isCurrentPlayer">[],
+  currentPlayerId: string
+): LeaderboardRow[] {
+  return [...items]
+    .sort((a, b) => b.totalScore - a.totalScore)
+    .slice(0, 20)
+    .map((item, idx) => ({
+      ...item,
+      rank: idx + 1,
+      isCurrentPlayer: item.playerId === currentPlayerId,
+    }));
+}
+
 /**
- * Carica la classifica reale da Supabase (con filtro temporale) o ripiega
- * in modo trasparente sui dati salvati in locale quando si è offline.
+ * Carica la classifica reale tramite la RPC `get_leaderboard`
+ * (che espone solo aggregati pubblici, mai email o dati privati) e ripiega
+ * in modo trasparente sui dati locali quando si è offline o non configurati.
  */
 export async function fetchLeaderboard(
   range: TimeRange
 ): Promise<{ entries: LeaderboardRow[]; source: "cloud" | "local" }> {
   const me = loadLocalPlayer();
 
-  try {
-    const supabase = createClient();
-    if (range === "all") {
-      const { data, error } = await supabase
-        .from("player_profiles")
-        .select("player_id, username, total_score, games_played, level")
-        .order("total_score", { ascending: false })
-        .limit(25);
+  if (isSupabaseConfigured) {
+    try {
+      const supabase = getBrowserClient();
+      if (!supabase) throw new Error("no-client");
+      const { data, error } = await supabase.rpc("get_leaderboard", { p_range: range });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data) && data.length > 0) {
         const byId = new Map<string, Omit<LeaderboardRow, "rank" | "isCurrentPlayer">>();
         for (const row of data) {
-          byId.set(row.player_id, {
-            playerId: row.player_id,
+          byId.set(row.user_id, {
+            playerId: row.user_id,
             username: row.username,
-            totalScore: row.total_score,
-            gamesPlayed: row.games_played,
-            level: row.level,
+            totalScore: Number(row.total_score),
+            gamesPlayed: Number(row.games_played),
+            level: Number(row.level),
           });
         }
-        if (me.gamesPlayed > 0) {
+        if (range === "all" && me.gamesPlayed > 0) {
           const existing = byId.get(me.playerId);
           if (!existing || me.totalScore >= existing.totalScore) {
             byId.set(me.playerId, {
@@ -417,39 +414,9 @@ export async function fetchLeaderboard(
           source: "cloud",
         };
       }
-    } else {
-      const days = range === "week" ? 7 : 30;
-      const since = new Date(Date.now() - days * 86_400_000).toISOString();
-      const { data, error } = await supabase
-        .from("game_sessions")
-        .select("player_id, username, total_score, ended_at")
-        .gte("ended_at", since)
-        .order("total_score", { ascending: false })
-        .limit(200);
-
-      if (!error && data) {
-        const agg = new Map<string, Omit<LeaderboardRow, "rank" | "isCurrentPlayer">>();
-        for (const row of data) {
-          const key = row.player_id ?? row.username;
-          const cur = agg.get(key);
-          const totalScore = (cur?.totalScore ?? 0) + row.total_score;
-          const gamesPlayed = (cur?.gamesPlayed ?? 0) + 1;
-          agg.set(key, {
-            playerId: key,
-            username: row.username,
-            totalScore,
-            gamesPlayed,
-            level: calculateLevel(Math.round(totalScore / 10)).level,
-          });
-        }
-        return {
-          entries: rankEntries(Array.from(agg.values()), me.playerId),
-          source: "cloud",
-        };
-      }
+    } catch {
+      // Passa al fallback locale sotto.
     }
-  } catch {
-    // Passa al fallback locale sotto.
   }
 
   const fallback = [...SEED_ENTRIES];
@@ -468,54 +435,50 @@ export async function fetchLeaderboard(
   };
 }
 
-function rankEntries(
-  items: Omit<LeaderboardRow, "rank" | "isCurrentPlayer">[],
-  currentPlayerId: string
-): LeaderboardRow[] {
-  return [...items]
-    .sort((a, b) => b.totalScore - a.totalScore)
-    .slice(0, 20)
-    .map((item, idx) => ({
-      ...item,
-      rank: idx + 1,
-      isCurrentPlayer: item.playerId === currentPlayerId,
-    }));
-}
-
 /**
  * Ripristina ed allinea l'eventuale sessione Supabase Auth con il profilo locale.
+ * Il profilo pubblico (username, livello) e i dati privati (email, punteggi)
+ * arrivano dalla RPC `get_my_profile`, che restituisce solo il proprio profilo.
  */
 export async function syncAuthSession(): Promise<LocalPlayerState> {
   const local = loadLocalPlayer();
+  if (!isSupabaseConfigured) return local;
+
   try {
-    const supabase = createClient();
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
+    const supabase = getBrowserClient();
+    if (!supabase) return local;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
     if (!user) return local;
 
-    const { data: cloudProfile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const { data: cloudData } = await supabase.rpc("get_my_profile");
+    const cloud =
+      cloudData && typeof cloudData === "object" && !Array.isArray(cloudData)
+        ? (cloudData as {
+            username?: string;
+            email?: string;
+            total_score?: number;
+            games_played?: number;
+            games_won?: number;
+            best_streak?: number;
+            bullseyes?: number;
+            xp?: number;
+          })
+        : null;
 
     const merged: LocalPlayerState = {
-      playerId: local.playerId,
+      ...local,
       authUserId: user.id,
-      username:
-        cloudProfile?.username ||
-        (user.user_metadata?.username as string | undefined) ||
-        local.username,
-      email: user.email ?? local.email,
-      totalScore: Math.max(local.totalScore, cloudProfile?.total_score ?? 0),
-      gamesPlayed: Math.max(local.gamesPlayed, cloudProfile?.games_played ?? 0),
-      gamesWon: Math.max(local.gamesWon, cloudProfile?.games_won ?? 0),
-      bestStreak: Math.max(local.bestStreak, cloudProfile?.best_streak ?? 0),
-      bullseyes: local.bullseyes,
-      xp: Math.max(local.xp, cloudProfile?.xp ?? 0),
+      username: cloud?.username || local.username,
+      email: user.email ?? cloud?.email ?? local.email,
+      totalScore: Math.max(local.totalScore, Number(cloud?.total_score ?? 0)),
+      gamesPlayed: Math.max(local.gamesPlayed, Number(cloud?.games_played ?? 0)),
+      gamesWon: Math.max(local.gamesWon, Number(cloud?.games_won ?? 0)),
+      bestStreak: Math.max(local.bestStreak, Number(cloud?.best_streak ?? 0)),
+      bullseyes: Math.max(local.bullseyes, Number(cloud?.bullseyes ?? 0)),
+      xp: Math.max(local.xp, Number(cloud?.xp ?? 0)),
     };
     saveLocalPlayer(merged);
-    await syncPlayerToCloud(merged);
     return merged;
   } catch {
     return local;
@@ -544,26 +507,26 @@ export async function signUpWithEmail(
       error: "La password deve avere almeno 6 caratteri.",
     };
   }
-  const desiredName = (username?.trim() || cleanEmail.split("@")[0] || "Esploratore").slice(0, 24);
+  const desiredName = (username?.trim() || cleanEmail.split("@")[0] || "Esploratore").slice(0, 20);
+  if (!isSupabaseConfigured) {
+    return {
+      ok: false,
+      player: loadLocalPlayer(),
+      mode: "local",
+      error:
+        "Account cloud non disponibile: Supabase non è configurato. Puoi comunque giocare in locale.",
+    };
+  }
 
   try {
-    const supabase = createClient();
+    const supabase = getBrowserClient();
+    if (!supabase) throw new Error("SUPABASE_NOT_CONFIGURED");
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
       options: { data: { username: desiredName } },
     });
     if (error) {
-      if (error.message === OFFLINE_ERROR_MESSAGE) {
-        const local = loadLocalPlayer();
-        const next: LocalPlayerState = {
-          ...local,
-          username: desiredName,
-          email: cleanEmail,
-        };
-        saveLocalPlayer(next);
-        return { ok: true, player: next, mode: "local" };
-      }
       return { ok: false, player: loadLocalPlayer(), mode: "cloud", error: error.message };
     }
     const local = loadLocalPlayer();
@@ -577,14 +540,12 @@ export async function signUpWithEmail(
     await syncPlayerToCloud(next);
     return { ok: true, player: next, mode: "cloud" };
   } catch {
-    const local = loadLocalPlayer();
-    const next: LocalPlayerState = {
-      ...local,
-      username: desiredName,
-      email: cleanEmail,
+    return {
+      ok: false,
+      player: loadLocalPlayer(),
+      mode: "local",
+      error: "Connessione a Supabase non riuscita. Riprova quando sei online.",
     };
-    saveLocalPlayer(next);
-    return { ok: true, player: next, mode: "local" };
   }
 }
 
@@ -610,22 +571,24 @@ export async function signInWithEmail(
     };
   }
 
+  if (!isSupabaseConfigured) {
+    return {
+      ok: false,
+      player: loadLocalPlayer(),
+      mode: "local",
+      error:
+        "Account cloud non disponibile: Supabase non è configurato. Puoi comunque giocare in locale.",
+    };
+  }
+
   try {
-    const supabase = createClient();
+    const supabase = getBrowserClient();
+    if (!supabase) throw new Error("SUPABASE_NOT_CONFIGURED");
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
       password,
     });
     if (error) {
-      if (error.message === OFFLINE_ERROR_MESSAGE) {
-        const local = loadLocalPlayer();
-        const next: LocalPlayerState = {
-          ...local,
-          email: cleanEmail,
-        };
-        saveLocalPlayer(next);
-        return { ok: true, player: next, mode: "local" };
-      }
       return { ok: false, player: loadLocalPlayer(), mode: "cloud", error: error.message };
     }
     const synced = await syncAuthSession();
@@ -639,20 +602,19 @@ export async function signInWithEmail(
       mode: "cloud",
     };
   } catch {
-    const local = loadLocalPlayer();
-    const next: LocalPlayerState = {
-      ...local,
-      email: cleanEmail,
+    return {
+      ok: false,
+      player: loadLocalPlayer(),
+      mode: "local",
+      error: "Connessione a Supabase non riuscita. Riprova quando sei online.",
     };
-    saveLocalPlayer(next);
-    return { ok: true, player: next, mode: "local" };
   }
 }
 
 export async function signOutAccount(): Promise<LocalPlayerState> {
   try {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    const supabase = getBrowserClient();
+    await supabase?.auth.signOut();
   } catch {
     // Ignorato se offline.
   }

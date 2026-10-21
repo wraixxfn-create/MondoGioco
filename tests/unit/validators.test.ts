@@ -64,7 +64,7 @@ describe("createRoomSchema", () => {
       quizType: "capital",
       difficulty: "easy",
       maxPlayers: 4,
-      totalQuestions: 10,
+      totalRounds: 10,
     });
     expect(result.success).toBe(true);
   });
@@ -75,7 +75,7 @@ describe("createRoomSchema", () => {
       quizType: "capital",
       difficulty: "easy",
       maxPlayers: 10,
-      totalQuestions: 10,
+      totalRounds: 10,
     });
     expect(result.success).toBe(false);
   });
@@ -86,7 +86,7 @@ describe("createRoomSchema", () => {
       quizType: "invalid",
       difficulty: "easy",
       maxPlayers: 4,
-      totalQuestions: 10,
+      totalRounds: 10,
     });
     expect(result.success).toBe(false);
   });
@@ -94,34 +94,57 @@ describe("createRoomSchema", () => {
 
 describe("joinRoomSchema", () => {
   it("accetta codici validi di 6 caratteri", () => {
-    expect(joinRoomSchema.safeParse({ code: "ABC123" }).success).toBe(true);
+    expect(joinRoomSchema.safeParse({ code: "abc234" }).success).toBe(true);
   });
 
-  it("rifiuta codici di lunghezza errata", () => {
+  it("rifiuta codici di lunghezza errata o con caratteri ambigui", () => {
     expect(joinRoomSchema.safeParse({ code: "AB12" }).success).toBe(false);
+    expect(joinRoomSchema.safeParse({ code: "ABC12I" }).success).toBe(false);
+    expect(joinRoomSchema.safeParse({ code: "ABC120" }).success).toBe(false);
   });
 });
 
 describe("playerAnswerSchema", () => {
-  it("accetta risposte valide", () => {
+  it("accetta risposte valide senza campi di punteggio", () => {
     const result = playerAnswerSchema.safeParse({
-      questionId: "550e8400-e29b-41d4-a716-446655440000",
+      roomId: "550e8400-e29b-41d4-a716-446655440000",
+      roundIndex: 1,
       answer: "Roma",
-      timeSpent: 5.5,
-      isCorrect: true,
-      points: 150,
     });
     expect(result.success).toBe(true);
   });
 
-  it("rifiuta punti negativi", () => {
+  it("rifiuta punteggi o esiti inviati dal client", () => {
     const result = playerAnswerSchema.safeParse({
-      questionId: "550e8400-e29b-41d4-a716-446655440000",
+      roomId: "550e8400-e29b-41d4-a716-446655440000",
+      roundIndex: 1,
       answer: "Roma",
-      timeSpent: 5.5,
       isCorrect: true,
-      points: -10,
+      points: 9999,
     });
-    expect(result.success).toBe(false);
+    // Zod rimuove le chiavi sconosciute: ciò che conta è che il client non le
+    // usi e che il server le ignori. Il contratto tipizzato non le prevede.
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("points");
+      expect(result.data).not.toHaveProperty("isCorrect");
+    }
+  });
+
+  it("rifiuta round o risposte non validi", () => {
+    expect(
+      playerAnswerSchema.safeParse({
+        roomId: "550e8400-e29b-41d4-a716-446655440000",
+        roundIndex: 0,
+        answer: "Roma",
+      }).success
+    ).toBe(false);
+    expect(
+      playerAnswerSchema.safeParse({
+        roomId: "550e8400-e29b-41d4-a716-446655440000",
+        roundIndex: 1,
+        answer: "",
+      }).success
+    ).toBe(false);
   });
 });

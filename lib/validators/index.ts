@@ -21,25 +21,38 @@ export const quizTypeSchema = z.enum(["capital", "flag", "location", "population
 
 export const difficultySchema = z.enum(["easy", "medium", "hard"]);
 
+/**
+ * Validazione lato client delle stanze multiplayer.
+ * Duplica intenzionalmente (in modo più permissivo) i vincoli del server:
+ * la fonte di verità resta `public.create_room` in PostgreSQL.
+ */
+export const roomCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-HJ-NP-Z2-9]{6}$/, "Il codice stanza deve avere 6 caratteri validi");
+
 export const createRoomSchema = z.object({
-  name: z.string().min(3, "Il nome della stanza deve avere almeno 3 caratteri").max(50),
-  quizType: quizTypeSchema,
+  name: z.string().trim().min(3, "Il nome della stanza deve avere almeno 3 caratteri").max(40),
+  quizType: z.enum(["capital", "flag", "continent", "population"]),
   difficulty: difficultySchema,
   maxPlayers: z.number().int().min(2).max(8),
-  totalQuestions: z.number().int().min(5).max(20),
+  totalRounds: z.number().int().min(3).max(15),
+  roundSeconds: z.number().int().min(10).max(90).optional(),
 });
 
 export const joinRoomSchema = z.object({
-  code: z.string().length(6, "Il codice stanza deve avere 6 caratteri").toUpperCase(),
+  code: roomCodeSchema,
 });
 
+/**
+ * Risposta inviata al server. NON contiene `isCorrect` né `points`: quei campi
+ * sono calcolati esclusivamente da PostgreSQL (vedi `public.submit_answer`).
+ */
 export const playerAnswerSchema = z.object({
-  questionId: z.string().uuid(),
-  answer: z.string(),
-  coordinates: geoCoordinatesSchema.optional(),
-  timeSpent: z.number().positive(),
-  isCorrect: z.boolean(),
-  points: z.number().int().min(0),
+  roomId: z.string().uuid(),
+  roundIndex: z.number().int().min(1),
+  answer: z.string().trim().min(1).max(80),
 });
 
 export const profileUpdateSchema = z.object({
