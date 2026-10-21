@@ -123,6 +123,31 @@ alter publication supabase_realtime add table public.game_events;
 Se Realtime non è disponibile, il multiplayer continua a funzionare tramite
 sincronizzazione periodica RPC (indicatore "Sincronizzazione periodica").
 
+## 5-bis. Pulizia automatica delle stanze (consigliata)
+
+Finché qualcuno tiene aperta la pagina `/multiplayer`, il client chiama
+`maintenance_tick()` ogni 2 minuti: archivia le stanze chiuse e chiude quelle
+abbandonate. Se nessuno ha l'app aperta, quelle stanze restano lì finché non
+torna un utente autenticato.
+
+Per una pulizia garantita anche a sito chiuso, abilita l'estensione
+**pg_cron** (Dashboard → **Database** → **Extensions** → `pg_cron`) e pianifica:
+
+```sql
+select cron.schedule(
+  'mondogioco-maintenance',
+  '* * * * *',
+  $$select public.maintenance_tick()$$
+);
+```
+
+- Gira ogni minuto come `postgres`/service role (la funzione accetta
+  `service_role` senza JWT).
+- Per fermarla: `select cron.unschedule('mondogioco-maintenance');`.
+- È idempotente: eseguirla più spesso non crea effetti collaterali.
+- Se non vuoi usare pg_cron va bene lo stesso: la stanza viene chiusa alla
+  prima chiamata utile di un client, al massimo con qualche minuto di ritardo.
+
 ## 6. Verifica reale con due utenti
 
 ```bash
