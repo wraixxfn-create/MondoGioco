@@ -22,20 +22,21 @@ test.describe("Homepage", () => {
 });
 
 test.describe("Pagina Gioca", () => {
-  test("mostra le opzioni di configurazione", async ({ page }) => {
+  test("mostra la scelta della modalità", async ({ page }) => {
     await page.goto("/play");
-    await expect(page.getByRole("heading", { name: /Nuova Partita/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Tipo di Quiz/i })).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Difficoltà/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /Trova il luogo sul globo/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Inizia la partita/i })
+    ).toBeVisible();
   });
 
-  test("mostra tutti i tipi di quiz", async ({ page }) => {
+  test("mostra le tre modalità di gioco", async ({ page }) => {
     await page.goto("/play");
-    await expect(page.getByText(/Capitali/)).toBeVisible();
-    await expect(page.getByText(/Bandiere/)).toBeVisible();
-    await expect(page.getByText(/Posizione/)).toBeVisible();
-    await expect(page.getByText(/Continenti/)).toBeVisible();
-    await expect(page.getByText(/Popolazione/)).toBeVisible();
+    await expect(page.getByText(/Allenamento libero/)).toBeVisible();
+    await expect(page.getByText(/Sfida a round/)).toBeVisible();
+    await expect(page.getByText(/Contro il tempo/)).toBeVisible();
   });
 });
 

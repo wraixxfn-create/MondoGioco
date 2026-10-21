@@ -137,6 +137,37 @@ export interface RealtimeGameState {
   currentQuestion: QuizQuestion | null;
 }
 
+/** Categoria di un luogo nel gioco geografico sul globo */
+export type LocationCategory =
+  | "capital"
+  | "city"
+  | "monument"
+  | "nature"
+  | "island";
+
+/** Un luogo reale usabile come obiettivo di un round sul globo */
+export interface GameLocation {
+  /** Identificativo stabile (slug univoco, mai riutilizzato) */
+  id: string;
+  /** Nome del luogo in italiano */
+  name: string;
+  /** Paese/stato a cui appartiene */
+  country: string;
+  continent: Continent;
+  category: LocationCategory;
+  /** 1 = facile, 2 = medio, 3 = difficile */
+  difficulty: 1 | 2 | 3;
+  coordinates: GeoCoordinates;
+  /**
+   * Indizi testuali progressivi (dal più vago al più specifico),
+   * testi originali scritti per MondoGioco. Almeno 2 per luogo.
+   */
+  hints: string[];
+}
+
+/** Modalità del gioco geografico sul globo */
+export type GeoGameMode = "training" | "challenge" | "timed";
+
 /** Calcolo del livello */
 export interface LevelInfo {
   level: number;

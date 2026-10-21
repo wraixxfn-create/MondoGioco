@@ -51,13 +51,13 @@ export default function HomePage() {
 
         <Card hover>
           <CardHeader
-            title="Globo 3D"
-            description="Esplora il mondo in tre dimensioni"
+            title="Globo 3D NASA"
+            description="Texture reale Blue Marble, picking preciso"
             icon={<span className="text-2xl">🌍</span>}
           />
           <p className="text-sm text-slate-400">
-            Interagisci con un globo terrestre 3D e individua la posizione dei
-            paesi.
+            Ruota e zooma la Terra con mouse, touch o tastiera: ogni click è
+            convertito in coordinate geografiche reali.
           </p>
         </Card>
 
