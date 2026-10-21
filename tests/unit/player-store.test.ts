@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createMultiplayerRoom } from "@/lib/services/multiplayer";
 import {
   computeXpGain,
   fetchLeaderboard,
@@ -7,7 +8,6 @@ import {
   recordGameResult,
   renamePlayer,
 } from "@/lib/services/player-store";
-import { createMultiplayerRoom, joinMultiplayerRoom } from "@/lib/services/multiplayer";
 
 // Simula assenza di rete nei test unitari per verificare persistenza e fallback istantanei
 vi.stubGlobal(
@@ -85,20 +85,14 @@ describe("Player Store & Leaderboard", () => {
     expect(loadLocalPlayer().username).toBe("CapitanoNemo");
   });
 
-  it("crea una stanza multiplayer e consente l'ingresso tramite codice", async () => {
-    const created = await createMultiplayerRoom({
+  it("non finge il multiplayer quando Supabase non è configurato", async () => {
+    const result = await createMultiplayerRoom({
       name: "Sfida Italiana",
       quizType: "capital",
       difficulty: "easy",
-      totalQuestions: 5,
+      totalRounds: 5,
     });
-
-    expect(created.room.code).toHaveLength(6);
-    expect(created.room.questions).toHaveLength(5);
-    expect(created.players).toHaveLength(1);
-
-    const joined = await joinMultiplayerRoom(created.room.code);
-    expect(joined.ok).toBe(true);
-    expect(joined.room?.id).toBe(created.room.id);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("NOT_CONFIGURED");
   });
 });

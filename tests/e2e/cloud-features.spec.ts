@@ -28,18 +28,21 @@ test.describe("Classifica, Profilo e Multiplayer", () => {
     await expect(page.getByRole("heading", { name: "ViaggiatoreMilano" })).toBeVisible();
   });
 
-  test("Multiplayer crea una stanza reale e avvia una partita quiz", async ({ page }) => {
+  test("Multiplayer mostra lo stato reale di configurazione senza simulare partite", async ({
+    page,
+  }) => {
     await page.goto("/multiplayer");
     await expect(page.getByRole("heading", { name: "Multiplayer" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Crea Nuova Stanza" }).click();
-    await page.getByLabel("Nome Stanza").fill("Partita Rapida");
-    await page.getByRole("button", { name: "Crea Stanza", exact: true }).click();
-
-    await expect(page.getByRole("heading", { name: "Partita Rapida" })).toBeVisible();
-    await page.getByRole("button", { name: /Avvia Partita/i }).click();
-
-    await expect(page.getByText(/Domanda 1 di 5/i)).toBeVisible();
-    await expect(page.getByText(/Qual è la capitale di/i)).toBeVisible();
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      // Senza credenziali NON deve esistere una finta stanza locale.
+      await expect(page.getByText("Multiplayer non configurato")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Crea Nuova Stanza" })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Unisciti a Stanza" })).toBeDisabled();
+    } else {
+      await expect(page.getByRole("button", { name: "Crea Nuova Stanza" })).toBeEnabled({
+        timeout: 20_000,
+      });
+    }
   });
 });
