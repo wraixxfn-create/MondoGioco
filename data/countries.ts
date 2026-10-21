@@ -1,0 +1,94 @@
+import type { Country } from "@/types";
+
+/**
+ * Dataset di paesi del mondo con coordinate, capitali e informazioni base.
+ * Include ~50 paesi rappresentativi di tutti i continenti.
+ */
+export const COUNTRIES: Country[] = [
+  // EUROPA
+  { id: "it", name: "Italia", capital: "Roma", continent: "europe", flag: "🇮🇹", coordinates: { lat: 41.9, lng: 12.5 }, population: 59000000, area: 301340, iso: "IT" },
+  { id: "fr", name: "Francia", capital: "Parigi", continent: "europe", flag: "🇫🇷", coordinates: { lat: 48.9, lng: 2.35 }, population: 67390000, area: 643801, iso: "FR" },
+  { id: "de", name: "Germania", capital: "Berlino", continent: "europe", flag: "🇩🇪", coordinates: { lat: 52.5, lng: 13.4 }, population: 83200000, area: 357022, iso: "DE" },
+  { id: "es", name: "Spagna", capital: "Madrid", continent: "europe", flag: "🇪🇸", coordinates: { lat: 40.4, lng: -3.7 }, population: 47350000, area: 505990, iso: "ES" },
+  { id: "pt", name: "Portogallo", capital: "Lisbona", continent: "europe", flag: "🇵🇹", coordinates: { lat: 38.7, lng: -9.14 }, population: 10300000, area: 92212, iso: "PT" },
+  { id: "gb", name: "Regno Unito", capital: "Londra", continent: "europe", flag: "🇬🇧", coordinates: { lat: 51.5, lng: -0.12 }, population: 67890000, area: 242495, iso: "GB" },
+  { id: "nl", name: "Paesi Bassi", capital: "Amsterdam", continent: "europe", flag: "🇳🇱", coordinates: { lat: 52.4, lng: 4.9 }, population: 17440000, area: 41543, iso: "NL" },
+  { id: "be", name: "Belgio", capital: "Bruxelles", continent: "europe", flag: "🇧🇪", coordinates: { lat: 50.85, lng: 4.35 }, population: 11590000, area: 30528, iso: "BE" },
+  { id: "ch", name: "Svizzera", capital: "Berna", continent: "europe", flag: "🇨🇭", coordinates: { lat: 46.95, lng: 7.45 }, population: 8740000, area: 41285, iso: "CH" },
+  { id: "at", name: "Austria", capital: "Vienna", continent: "europe", flag: "🇦🇹", coordinates: { lat: 48.2, lng: 16.37 }, population: 9010000, area: 83871, iso: "AT" },
+  { id: "pl", name: "Polonia", capital: "Varsavia", continent: "europe", flag: "🇵🇱", coordinates: { lat: 52.23, lng: 21.01 }, population: 37950000, area: 312685, iso: "PL" },
+  { id: "se", name: "Svezia", capital: "Stoccolma", continent: "europe", flag: "🇸🇪", coordinates: { lat: 59.33, lng: 18.07 }, population: 10420000, area: 450295, iso: "SE" },
+  { id: "no", name: "Norvegia", capital: "Oslo", continent: "europe", flag: "🇳🇴", coordinates: { lat: 59.91, lng: 10.75 }, population: 5400000, area: 385207, iso: "NO" },
+  { id: "gr", name: "Grecia", capital: "Atene", continent: "europe", flag: "🇬🇷", coordinates: { lat: 37.98, lng: 23.73 }, population: 10680000, area: 131957, iso: "GR" },
+  { id: "tr", name: "Turchia", capital: "Ankara", continent: "europe", flag: "🇹🇷", coordinates: { lat: 39.93, lng: 32.85 }, population: 84340000, area: 783562, iso: "TR" },
+  { id: "ie", name: "Irlanda", capital: "Dublino", continent: "europe", flag: "🇮🇪", coordinates: { lat: 53.35, lng: -6.26 }, population: 5030000, area: 70273, iso: "IE" },
+
+  // ASIA
+  { id: "cn", name: "Cina", capital: "Pechino", continent: "asia", flag: "🇨🇳", coordinates: { lat: 39.9, lng: 116.4 }, population: 1412000000, area: 9596961, iso: "CN" },
+  { id: "jp", name: "Giappone", capital: "Tokyo", continent: "asia", flag: "🇯🇵", coordinates: { lat: 35.68, lng: 139.69 }, population: 125700000, area: 377975, iso: "JP" },
+  { id: "in", name: "India", capital: "Nuova Delhi", continent: "asia", flag: "🇮🇳", coordinates: { lat: 28.6, lng: 77.2 }, population: 1408000000, area: 3287263, iso: "IN" },
+  { id: "kr", name: "Corea del Sud", capital: "Seul", continent: "asia", flag: "🇰🇷", coordinates: { lat: 37.57, lng: 126.98 }, population: 51740000, area: 100210, iso: "KR" },
+  { id: "th", name: "Thailandia", capital: "Bangkok", continent: "asia", flag: "🇹🇭", coordinates: { lat: 13.75, lng: 100.5 }, population: 71800000, area: 513120, iso: "TH" },
+  { id: "sa", name: "Arabia Saudita", capital: "Riyad", continent: "asia", flag: "🇸🇦", coordinates: { lat: 24.71, lng: 46.67 }, population: 35340000, area: 2149690, iso: "SA" },
+  { id: "id", name: "Indonesia", capital: "Giacarta", continent: "asia", flag: "🇮🇩", coordinates: { lat: -6.21, lng: 106.85 }, population: 273500000, area: 1904569, iso: "ID" },
+  { id: "vn", name: "Vietnam", capital: "Hanoi", continent: "asia", flag: "🇻🇳", coordinates: { lat: 21.03, lng: 105.85 }, population: 97340000, area: 331212, iso: "VN" },
+  { id: "ir", name: "Iran", capital: "Teheran", continent: "asia", flag: "🇮🇷", coordinates: { lat: 35.69, lng: 51.39 }, population: 85030000, area: 1648195, iso: "IR" },
+  { id: "pk", name: "Pakistan", capital: "Islamabad", continent: "asia", flag: "🇵🇰", coordinates: { lat: 33.69, lng: 73.04 }, population: 220900000, area: 881913, iso: "PK" },
+
+  // AFRICA
+  { id: "eg", name: "Egitto", capital: "Il Cairo", continent: "africa", flag: "🇪🇬", coordinates: { lat: 30.04, lng: 31.24 }, population: 104260000, area: 1002450, iso: "EG" },
+  { id: "za", name: "Sudafrica", capital: "Pretoria", continent: "africa", flag: "🇿🇦", coordinates: { lat: -25.75, lng: 28.19 }, population: 60040000, area: 1221037, iso: "ZA" },
+  { id: "ng", name: "Nigeria", capital: "Abuja", continent: "africa", flag: "🇳🇬", coordinates: { lat: 9.06, lng: 7.49 }, population: 211400000, area: 923768, iso: "NG" },
+  { id: "ke", name: "Kenya", capital: "Nairobi", continent: "africa", flag: "🇰🇪", coordinates: { lat: -1.29, lng: 36.82 }, population: 53770000, area: 580367, iso: "KE" },
+  { id: "ma", name: "Marocco", capital: "Rabat", continent: "africa", flag: "🇲🇦", coordinates: { lat: 34.02, lng: -6.84 }, population: 36910000, area: 446550, iso: "MA" },
+  { id: "et", name: "Etiopia", capital: "Addis Abeba", continent: "africa", flag: "🇪🇹", coordinates: { lat: 9.03, lng: 38.74 }, population: 117900000, area: 1104300, iso: "ET" },
+  { id: "gh", name: "Ghana", capital: "Accra", continent: "africa", flag: "🇬🇭", coordinates: { lat: 5.56, lng: -0.19 }, population: 31070000, area: 238533, iso: "GH" },
+  { id: "tz", name: "Tanzania", capital: "Dodoma", continent: "africa", flag: "🇹🇿", coordinates: { lat: -6.16, lng: 35.75 }, population: 61500000, area: 945087, iso: "TZ" },
+
+  // NORD AMERICA
+  { id: "us", name: "Stati Uniti", capital: "Washington D.C.", continent: "north_america", flag: "🇺🇸", coordinates: { lat: 38.9, lng: -77.04 }, population: 331000000, area: 9833517, iso: "US" },
+  { id: "ca", name: "Canada", capital: "Ottawa", continent: "north_america", flag: "🇨🇦", coordinates: { lat: 45.42, lng: -75.7 }, population: 38010000, area: 9984670, iso: "CA" },
+  { id: "mx", name: "Messico", capital: "Città del Messico", continent: "north_america", flag: "🇲🇽", coordinates: { lat: 19.43, lng: -99.13 }, population: 128900000, area: 1964375, iso: "MX" },
+  { id: "cu", name: "Cuba", capital: "L'Avana", continent: "north_america", flag: "🇨🇺", coordinates: { lat: 23.11, lng: -82.37 }, population: 11330000, area: 109884, iso: "CU" },
+
+  // SUD AMERICA
+  { id: "br", name: "Brasile", capital: "Brasilia", continent: "south_america", flag: "🇧🇷", coordinates: { lat: -15.8, lng: -47.86 }, population: 212600000, area: 8515767, iso: "BR" },
+  { id: "ar", name: "Argentina", capital: "Buenos Aires", continent: "south_america", flag: "🇦🇷", coordinates: { lat: -34.6, lng: -58.38 }, population: 45380000, area: 2780400, iso: "AR" },
+  { id: "co", name: "Colombia", capital: "Bogotà", continent: "south_america", flag: "🇨🇴", coordinates: { lat: 4.71, lng: -74.07 }, population: 51270000, area: 1141748, iso: "CO" },
+  { id: "cl", name: "Cile", capital: "Santiago", continent: "south_america", flag: "🇨🇱", coordinates: { lat: -33.45, lng: -70.67 }, population: 19120000, area: 756102, iso: "CL" },
+  { id: "pe", name: "Perù", capital: "Lima", continent: "south_america", flag: "🇵🇪", coordinates: { lat: -12.05, lng: -77.04 }, population: 32970000, area: 1285216, iso: "PE" },
+
+  // OCEANIA
+  { id: "au", name: "Australia", capital: "Canberra", continent: "oceania", flag: "🇦🇺", coordinates: { lat: -35.28, lng: 149.13 }, population: 25690000, area: 7692024, iso: "AU" },
+  { id: "nz", name: "Nuova Zelanda", capital: "Wellington", continent: "oceania", flag: "🇳🇿", coordinates: { lat: -41.29, lng: 174.78 }, population: 5090000, area: 268838, iso: "NZ" },
+];
+
+/**
+ * Ottieni un paese per ID.
+ */
+export function getCountryById(id: string): Country | undefined {
+  return COUNTRIES.find((c) => c.id === id);
+}
+
+/**
+ * Ottieni paesi per continente.
+ */
+export function getCountriesByContinent(
+  continent: string
+): Country[] {
+  return COUNTRIES.filter((c) => c.continent === continent);
+}
+
+/**
+ * Ottieni tutte le capitali come lista di stringhe.
+ */
+export function getAllCapitals(): string[] {
+  return COUNTRIES.map((c) => c.capital);
+}
+
+/**
+ * Ottieni tutti i nomi dei paesi.
+ */
+export function getAllCountryNames(): string[] {
+  return COUNTRIES.map((c) => c.name);
+}
