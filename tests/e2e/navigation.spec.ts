@@ -6,6 +6,15 @@ test.describe("Homepage", () => {
     await expect(page.getByRole("heading", { name: /Esplora il Mondo/i })).toBeVisible();
   });
 
+  test("invia gli header HTTP di sicurezza essenziali", async ({ page }) => {
+    const response = await page.goto("/");
+    const headers = response?.headers() ?? {};
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    expect(headers["x-frame-options"]).toBe("DENY");
+    expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["permissions-policy"]).toContain("geolocation=()");
+  });
+
   test("ha link di navigazione funzionanti", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("link", { name: /Gioca/i })).toBeVisible();

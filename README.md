@@ -93,6 +93,8 @@ Utente, XP/livelli/obiettivi, streak, classifiche, pareggi e migrazione 005:
 [`docs/PROGRESSION.md`](docs/PROGRESSION.md).
 Modello di sicurezza e dati pubblici/privati: [`docs/SECURITY.md`](docs/SECURITY.md).
 Strategia di test: [`docs/TESTING.md`](docs/TESTING.md).
+Audit e gate di release: [`docs/RELEASE_AUDIT.md`](docs/RELEASE_AUDIT.md).
+Build, migrazioni e deploy Vercel: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## ⚠️ Limiti noti (dichiarati, non nascosti)
 
