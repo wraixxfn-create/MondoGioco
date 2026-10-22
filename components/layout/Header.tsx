@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { loadLocalPlayer } from "@/lib/services/player-store";
 
 export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Applica subito la preferenza "Riduci animazioni" salvata nel profilo,
+  // così vale su tutte le pagine (oltre a prefers-reduced-motion di sistema).
+  useEffect(() => {
+    try {
+      const { settings } = loadLocalPlayer();
+      document.documentElement.dataset.reduceMotion = settings.reduceMotion ? "true" : "false";
+    } catch {
+      // Storage non disponibile: resta la preferenza di sistema.
+    }
+  }, [pathname]);
 
   const navItems = [
     { href: "/", label: "Home" },
@@ -15,6 +27,7 @@ export function Header() {
     { href: "/multiplayer", label: "Multiplayer" },
     { href: "/leaderboard", label: "Classifiche" },
     { href: "/profile", label: "Profilo" },
+    { href: "/auth", label: "Accedi" },
   ];
 
   const isActive = (href: string) => {
@@ -35,15 +48,16 @@ export function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Navigazione principale">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                aria-current={isActive(item.href) ? "page" : undefined}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive(item.href)
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    ? "bg-emerald-500/10 text-emerald-300"
+                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
                 }`}
               >
                 {item.label}
@@ -54,8 +68,10 @@ export function Header() {
           {/* Mobile menu button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-slate-800 text-slate-300"
-            aria-label="Toggle menu"
+            className="md:hidden p-3 rounded-lg hover:bg-slate-800 text-slate-200"
+            aria-label={mobileMenuOpen ? "Chiudi menu" : "Apri menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="menu-mobile"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               {mobileMenuOpen ? (
@@ -79,17 +95,22 @@ export function Header() {
 
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
-          <nav className="md:hidden py-4 border-t border-slate-800">
+          <nav
+            id="menu-mobile"
+            className="md:hidden py-4 border-t border-slate-800"
+            aria-label="Navigazione principale mobile"
+          >
             <div className="flex flex-col gap-2">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive(item.href) ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                     isActive(item.href)
-                      ? "bg-emerald-500/10 text-emerald-400"
-                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "text-slate-200 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
                   {item.label}

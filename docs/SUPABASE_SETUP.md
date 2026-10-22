@@ -56,19 +56,20 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...   # chiave pubblica anon
 
 Le migrazioni sono in `supabase/migrations/` e vanno eseguite **in ordine**:
 
-| File                                | Contenuto                                                              |
-| ----------------------------------- | ---------------------------------------------------------------------- |
-| `001_initial_schema.sql`            | Schema storico (profili, tabelle legacy)                               |
-| `002_profiles_rate_limits.sql`      | Profili pubblici/privati, rate limiting, classifica RPC                |
-| `003_multiplayer_authoritative.sql` | Multiplayer autoritativo: stanze, membri, round, risposte, eventi, RPC |
-| `004_question_bank_seed.sql`        | Banca domande generata (180 domande)                                   |
+| File                                | Contenuto                                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `001_initial_schema.sql`            | Schema storico (profili, tabelle legacy)                                                                                              |
+| `002_profiles_rate_limits.sql`      | Profili pubblici/privati, rate limiting, classifica RPC                                                                               |
+| `003_multiplayer_authoritative.sql` | Multiplayer autoritativo: stanze, membri, round, risposte, eventi, RPC                                                                |
+| `004_question_bank_seed.sql`        | Banca domande generata (180 domande)                                                                                                  |
+| `005_progression.sql`               | Progressione: statistiche complete, obiettivi idempotenti, streak, avatar, impostazioni, amici (additiva, vedi `docs/PROGRESSION.md`) |
 
 ### Opzione A — SQL Editor (nessuna installazione)
 
 1. Dashboard → **SQL Editor** → **New query**.
 2. Apri `supabase/migrations/001_initial_schema.sql`, copia **tutto** il
    contenuto, incollalo nell'editor e premi **Run**.
-3. Ripeti in ordine con `002`, `003`, `004`.
+3. Ripeti in ordine con `002`, `003`, `004`, `005`.
 4. Se un file restituisce errori, fermati e leggi il messaggio: quasi sempre è
    un passaggio saltato (es. `004` senza `003`).
 
@@ -97,12 +98,21 @@ account: serve perché RLS e autorizzazioni funzionino davvero.
 Senza questo passaggio la pagina mostra:
 "Accesso anonimo disattivato su Supabase".
 
-### Account con email (opzionale)
+### Account con email e recupero password
 
-- **Authentication → Providers → Email** è attivo per default.
+La pagina `/auth` offre registrazione, login e **recupero password**
+(link email → `/auth/reset`). Perché funzioni:
+
+- **Authentication → Providers → Email** deve essere attivo (default).
+- **Authentication → URL Configuration**: imposta **Site URL** con l'origine
+  dell'app e aggiungi ai **Redirect URLs** sia `<origine>/auth` sia
+  `<origine>/auth/reset`, per ogni ambiente (es. `http://localhost:3000/auth`
+  e `http://localhost:3000/auth/reset` in locale, equivalenti in produzione).
+  Senza questi URL Supabase rifiuta il redirect e il link di recupero ricade
+  sul Site URL generico.
 - Per test rapidi puoi disattivare **Confirm email** in **Authentication →
-  Sign In / Up → Email**. In produzione conviene tenerlo attivo e configurare
-  **Site URL** + **Redirect URLs** con il dominio dell'app.
+  Sign In / Up → Email**. In produzione conviene tenerlo attivo: la UI gestisce
+  lo stato "conferma la tua email" senza fingere la sincronizzazione.
 
 ## 5. Verifica Realtime
 
@@ -195,7 +205,7 @@ Se tutti i controlli sono ✔ il backend è pronto.
 | "Accesso anonimo disattivato"                           | Anonymous provider off                    | passo 4                                              |
 | "Codice stanza non valido o stanza non più disponibile" | codice errato, stanza chiusa/piena        | verifica il codice; crea una nuova stanza            |
 | "Troppe richieste in poco tempo"                        | rate limit per utente                     | attendi (es. 60s per `join_room`)                    |
-| "Permesso negato dal database"                          | migrazioni mancanti o ruolo sbagliato     | riapplica `002`–`004`, verifica di usare la anon key |
+| "Permesso negato dal database"                          | migrazioni mancanti o ruolo sbagliato     | riapplica `002`–`005`, verifica di usare la anon key |
 | "Profilo non ancora creato"                             | trigger `handle_new_user` assente         | verifica il trigger in `002`                         |
 | Realtime non aggiorna                                   | publication non configurata               | passo 5 (il polling resta attivo)                    |
 | Errori `gen_random_uuid`                                | PostgreSQL < 13                           | usa un progetto Supabase attuale                     |

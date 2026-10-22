@@ -1,6 +1,7 @@
 # 🌍 MondoGioco
 
-Gioco geografico web in italiano con **globo 3D NASA interattivo**, **classifiche**,
+Gioco geografico web in italiano con **globo 3D NASA interattivo**, **account e
+progressione** (XP, livelli, obiettivi, streak), **classifiche** globale/settimanale/amici,
 **allenamento** e **multiplayer online reale** basato su Supabase.
 
 > Il multiplayer non usa bot, dati statici o aggiornamenti locali presentati come
@@ -29,9 +30,10 @@ cp .env.example .env.local
 # inserisci Project URL + anon public key del TUO progetto Supabase
 ```
 
-Poi applica le migrazioni in `supabase/migrations/` (001 → 004) e abilita
-l'accesso anonimo. La guida passo passo per principianti è in
-[`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md).
+Poi applica le migrazioni in `supabase/migrations/` (**001 → 005**, in ordine),
+abilita l'accesso anonimo e aggiungi `<origine>/auth` e `<origine>/auth/reset`
+ai Redirect URLs (serve al recupero password). La guida passo passo per
+principianti è in [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md).
 
 ```bash
 npm run verify:remote   # verifica reale: 2 utenti, stanza, round, chiusura
@@ -48,10 +50,18 @@ npm run verify:remote   # verifica reale: 2 utenti, stanza, round, chiusura
   lobby con stato di connessione e pronto, avvio da parte dell'host, round
   sincronizzati, risposte validate dal server, punteggi, classifica finale,
   riconnessione e passaggio di host.
-- **Classifiche (`/leaderboard`)** — Classifica globale, mensile e settimanale
-  tramite RPC server-side.
-- **Profilo (`/profile`)** — Livelli, XP, obiettivi e account cloud opzionale
-  (Supabase Auth, incluso l'accesso come ospite anonimo).
+- **Account (`/auth`, `/auth/reset`)** — Registrazione, login, recupero e cambio
+  password via Supabase Auth. Senza configurazione i moduli sono disabilitati
+  con un avviso esplicito (nessuna finta registrazione).
+- **Classifiche (`/leaderboard`)** — Globale, settimanale/mensile e **amici**
+  tramite RPC server-side; pareggi a pari punti con posizione condivisa.
+  Senza cloud mostra **solo** i tuoi dati reali del dispositivo (nessun
+  giocatore inventato).
+- **Profilo (`/profile`)** — Nickname e avatar cosmetici sbloccabili, livelli e
+  XP con regole documentate, 12 obiettivi accreditati una sola volta dal
+  server, streak giornaliera, accuratezza, punteggio medio, record,
+  statistiche per modalità, storico partite (con filtro multiplayer) e
+  impostazioni (animazioni ridotte, rotazione globo) sincronizzate.
 
 ## 🛠️ Comandi
 
@@ -79,6 +89,8 @@ npm run db:seed        # rigenera la banca domande da data/countries.ts
 | Realtime | Supabase Realtime           | Notifica i cambiamenti (il polling RPC resta come fallback) |
 
 Dettagli su stati, timer, latenza ed errori: [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md).
+Utente, XP/livelli/obiettivi, streak, classifiche, pareggi e migrazione 005:
+[`docs/PROGRESSION.md`](docs/PROGRESSION.md).
 Modello di sicurezza e dati pubblici/privati: [`docs/SECURITY.md`](docs/SECURITY.md).
 Strategia di test: [`docs/TESTING.md`](docs/TESTING.md).
 
@@ -88,6 +100,11 @@ Strategia di test: [`docs/TESTING.md`](docs/TESTING.md).
   offline-first). Il server ne valida solo la plausibilità: non sono una fonte
   autorevole per competizioni. Le partite **multiplayer** sono invece interamente
   calcolate dal server.
+- Gli "amici" sono relazioni **"seguo"** unidirezionali per nickname pubblico
+  (niente richieste/accettazioni): servono solo a comporre la classifica amici.
+- La streak giornaliera cloud usa il **giorno UTC del server**, quella locale
+  la data del dispositivo: vicino alla mezzanotte possono differire
+  (documentato in `docs/PROGRESSION.md`).
 - L'accesso ai dati Supabase usa la **anon key**, pubblica per design. La
   `service_role` key non è mai usata dal client né inclusa nel repository.
 - Il rate limiting è applicativo (per utente); per protezioni anti-abuso su larga

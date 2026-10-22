@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { loadLocalPlayer } from "@/lib/services/player-store";
 
 // Carica il globo solo lato client per evitare problemi SSR con Three.js
 const GlobeContainer = dynamic(
@@ -25,9 +26,24 @@ function GlobeLoading() {
 }
 
 export function GlobeHero() {
+  // La rotazione è puramente decorativa: si spegne con l'impostazione utente
+  // (profilo → Impostazioni) o con prefers-reduced-motion, riducendo anche
+  // il lavoro continuo della GPU. Il canvas è già limitato (dpr ≤ 1.8,
+  // caricamento solo lato client) per non pesare sui dispositivi lenti.
+  const [autoRotate, setAutoRotate] = useState(true);
+  useEffect(() => {
+    try {
+      const { settings } = loadLocalPlayer();
+      const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setAutoRotate(settings.globeAutoRotate && !settings.reduceMotion && !prefersReduced);
+    } catch {
+      // Preferenze non leggibili: comportamento predefinito invariato.
+    }
+  }, []);
+
   return (
     <GlobeContainer
-      autoRotate={true}
+      autoRotate={autoRotate}
       selectable={false}
       height="500px"
       markers={[

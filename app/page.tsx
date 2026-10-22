@@ -107,12 +107,17 @@ export default function HomePage() {
       <section className="text-center space-y-4 py-12">
         <h2 className="text-3xl font-bold text-white">Pronto a partire per il tuo viaggio?</h2>
         <p className="text-slate-400 max-w-xl mx-auto">
-          Crea un account gratuito e inizia subito a giocare. Salva i tuoi progressi e sfida i tuoi
-          amici.
+          Gioca subito come ospite, oppure crea un account gratuito per salvare progressi, obiettivi
+          e streak su ogni dispositivo e sfidare i tuoi amici in classifica.
         </p>
-        <div className="pt-4">
-          <Link href="/profile">
+        <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+          <Link href="/auth">
             <Button size="lg">Crea Account</Button>
+          </Link>
+          <Link href="/profile">
+            <Button size="lg" variant="secondary">
+              Vedi il tuo profilo
+            </Button>
           </Link>
         </div>
       </section>

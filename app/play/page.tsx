@@ -27,6 +27,8 @@ import {
 } from "@/lib/game/geo";
 import { formatNumber, continentLabel } from "@/lib/utils";
 import { recordGameResult } from "@/lib/services/player-store";
+import { v4FallbackId } from "@/lib/utils/id";
+import type { AchievementDef } from "@/lib/game/progression";
 import Link from "next/link";
 import type { GeoCoordinates, GeoGameMode } from "@/types";
 
@@ -106,7 +108,12 @@ export default function PlayPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [xpEarned, setXpEarned] = useState<number | null>(null);
+  const [newAchievements, setNewAchievements] = useState<AchievementDef[]>([]);
+  const [resultSynced, setResultSynced] = useState<boolean | null>(null);
   const savedGameRef = useRef<GeoGameState | null>(null);
+  // Chiave di idempotenza della partita corrente: la stessa partita non
+  // può accreditare XP/punti due volte, nemmeno con invii ripetuti.
+  const sessionIdRef = useRef<string | null>(null);
 
   const pendingRef = useRef<GeoCoordinates | null>(null);
   pendingRef.current = pendingGuess;
@@ -143,6 +150,9 @@ export default function PlayPage() {
       setFocusCoords(null);
       setAnnouncement("");
       setXpEarned(null);
+      setNewAchievements([]);
+      setResultSynced(null);
+      sessionIdRef.current = v4FallbackId();
       savedGameRef.current = null;
       setScreen("game");
     } catch (err) {
@@ -229,8 +239,11 @@ export default function PlayPage() {
       bestStreak,
       bullseyes: summary.bullseyes,
       won: summary.averageScore >= 2500,
+      sessionId: sessionIdRef.current ?? undefined,
     }).then((res) => {
       setXpEarned(res.xpEarned);
+      setNewAchievements(res.newlyUnlocked);
+      setResultSynced(res.synced);
     });
   }, [screen, game]);
 
@@ -314,9 +327,39 @@ export default function PlayPage() {
               punti su {formatNumber(s.maxPossibleScore)} possibili
             </p>
             {xpEarned != null && xpEarned > 0 && (
-              <p className="text-sm text-emerald-400 font-medium mt-2">
-                +{formatNumber(xpEarned)} XP guadagnati · Punteggio salvato in classifica
+              <p className="text-sm text-emerald-300 font-medium mt-2" role="status">
+                +{formatNumber(xpEarned)} XP guadagnati ·{" "}
+                {resultSynced
+                  ? "Risultato sincronizzato con il tuo account cloud"
+                  : "Risultato salvato su questo dispositivo"}
               </p>
+            )}
+            {newAchievements.length > 0 && (
+              <div
+                className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-3 text-left"
+                role="status"
+                aria-live="polite"
+              >
+                <p className="text-sm font-bold text-amber-200">
+                  🏆{" "}
+                  {newAchievements.length === 1
+                    ? "Nuovo obiettivo sbloccato!"
+                    : "Nuovi obiettivi sbloccati!"}
+                </p>
+                <ul className="mt-1 space-y-0.5 text-sm text-amber-100">
+                  {newAchievements.map((achievement) => (
+                    <li key={achievement.id}>
+                      {achievement.icon} <strong>{achievement.title}</strong> · +{achievement.xp} XP
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/profile"
+                  className="inline-block mt-2 text-sm text-emerald-300 underline underline-offset-2"
+                >
+                  Vedi tutti gli obiettivi nel profilo
+                </Link>
+              </div>
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
