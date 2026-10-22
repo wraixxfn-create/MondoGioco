@@ -1,0 +1,113 @@
+{
+  "generatedAt": "2026-10-22",
+  "contentVersion": "1.0.0",
+  "schemaVersion": 2,
+  "config": {
+    "minPopulation": 1000,
+    "bigCityPopulation": 150000,
+    "perCountryMin": 12,
+    "perCountryMax": 100,
+    "dedupeKm": 12,
+    "coastalKm": 25,
+    "borderToleranceKm": 30,
+    "islandToleranceKm": 60,
+    "waterToleranceKm": 150,
+    "waterBboxMarginDeg": 1.5,
+    "easyPopulation": 500000,
+    "mediumPopulation": 150000,
+    "megacityPopulation": 5000000
+  },
+  "totals": {
+    "cities": 3348,
+    "countries": 233,
+    "capitals": 165
+  },
+  "byContinent": {
+    "europe": 619,
+    "asia": 1157,
+    "north_america": 436,
+    "africa": 727,
+    "south_america": 279,
+    "oceania": 130
+  },
+  "byDifficulty": {
+    "1": 669,
+    "2": 1376,
+    "3": 1303
+  },
+  "byTheme": {
+    "city": 3348,
+    "capitals": 165,
+    "metropolis": 644,
+    "coastal": 1283,
+    "admin-capital": 2215,
+    "megacity": 23
+  },
+  "quality": {
+    "geoChecked": 3383,
+    "inside": 3131,
+    "near": 171,
+    "droppedOutside": 9,
+    "droppedDedupe": 1219,
+    "droppedDuplicateName": 4,
+    "droppedCuratedDuplicate": 68,
+    "noGeometryCountries": ["BQ", "GF", "GP", "MQ", "RE", "SJ", "YT"],
+    "coastal": 1313
+  },
+  "packs": [
+    {
+      "id": "cities-europe",
+      "version": "1.0.0",
+      "title": "Città e capitali — Europa",
+      "count": 619,
+      "approxBytes": 45926,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    },
+    {
+      "id": "cities-asia",
+      "version": "1.0.0",
+      "title": "Città e capitali — Asia",
+      "count": 1157,
+      "approxBytes": 85786,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    },
+    {
+      "id": "cities-africa",
+      "version": "1.0.0",
+      "title": "Città e capitali — Africa",
+      "count": 727,
+      "approxBytes": 53141,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    },
+    {
+      "id": "cities-north_america",
+      "version": "1.0.0",
+      "title": "Città e capitali — America del Nord",
+      "count": 436,
+      "approxBytes": 34327,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    },
+    {
+      "id": "cities-south_america",
+      "version": "1.0.0",
+      "title": "Città e capitali — America del Sud",
+      "count": 279,
+      "approxBytes": 22332,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    },
+    {
+      "id": "cities-oceania",
+      "version": "1.0.0",
+      "title": "Città e capitali — Oceania",
+      "count": 130,
+      "approxBytes": 10681,
+      "sourceIds": ["geonames", "natural-earth", "iso-3166"],
+      "curated": false
+    }
+  ]
+}

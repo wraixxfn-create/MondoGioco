@@ -37,12 +37,18 @@ export default function HomePage() {
                   👥 Multiplayer
                 </Button>
               </Link>
+              <Link href="/contenuti">
+                <Button size="lg" variant="secondary">
+                  📚 Contenuti
+                </Button>
+              </Link>
             </div>
             <div className="flex flex-wrap gap-2 pt-2">
               <Pill tone="success">⚡ Sprint 15s</Pill>
               <Pill tone="warning">🎯 Precisione</Pill>
               <Pill tone="info">🛡️ Sopravvivenza</Pill>
               <Pill tone="accent">📅 Giornaliera</Pill>
+              <Pill tone="success">🌍 3.600+ luoghi</Pill>
             </div>
           </div>
 

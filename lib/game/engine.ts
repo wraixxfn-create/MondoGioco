@@ -208,15 +208,30 @@ export function pickLocations(
  * fino a 50 luoghi (più che sufficienti per il timer totale) e la
  * partita termina per scelta del giocatore o allo scadere del timer.
  */
+export interface CreateGameOptions {
+  /**
+   * Obiettivi già scelti dal chiamante (es. dal generatore di round in
+   * `lib/content/selection.ts`). Se presenti, il motore non estrae nulla:
+   * la SELEZIONE dei luoghi resta fuori dalle regole del gioco.
+   */
+  targets?: GameLocation[];
+  /** Difficoltà massima consentita quando l'estrazione è interna. */
+  maxDifficulty?: 1 | 2 | 3;
+}
+
 export function createGame(
   dataset: GameLocation[],
   config: GeoGameConfig = DEFAULT_CONFIGS.challenge,
   rng: Rng = Math.random,
-  now: number = Date.now()
+  now: number = Date.now(),
+  options: CreateGameOptions = {}
 ): GeoGameState {
   const finiteRoundModes: GeoGameMode[] = ["challenge", "sprint", "precision", "daily"];
   const wanted = finiteRoundModes.includes(config.mode) ? config.totalRounds : 50;
-  const targets = pickLocations(dataset, wanted, rng);
+  const targets =
+    options.targets && options.targets.length > 0
+      ? options.targets
+      : pickLocations(dataset, wanted, rng, options.maxDifficulty);
   const livesRemaining = config.mode === "survival" ? (config.lives ?? SURVIVAL_MAX_LIVES) : null;
 
   return {

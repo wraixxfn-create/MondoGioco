@@ -30,8 +30,25 @@ export type QuizType = "capital" | "flag" | "population" | "continent";
 /** Difficoltà del quiz */
 export type Difficulty = "easy" | "medium" | "hard";
 
-/** Categoria di un luogo nel gioco geografico sul globo */
-export type LocationCategory = "capital" | "city" | "monument" | "nature" | "island";
+/**
+ * Categoria di un luogo nel gioco geografico sul globo.
+ *
+ * L'unione NON è chiusa: i valori noti sono quelli registrati in
+ * `lib/content/categories.ts`, ma i pacchetti di dati possono introdurne
+ * di nuovi senza modifiche al motore di gioco (una categoria sconosciuta
+ * riceve un'etichetta di fallback dal registro).
+ */
+export type LocationCategory =
+  | "capital"
+  | "city"
+  | "monument"
+  | "nature"
+  | "island"
+  | "mountain"
+  | "river"
+  | "lake"
+  | "historic"
+  | (string & {});
 
 /** Un luogo reale usabile come obiettivo di un round sul globo */
 export interface GameLocation {
