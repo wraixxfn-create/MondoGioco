@@ -75,8 +75,20 @@ export const DEFAULT_CONFIGS: Record<GeoGameMode, GeoGameConfig> = {
   training: { mode: "training", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: 0 },
   challenge: { mode: "challenge", totalRounds: 5, secondsPerRound: 60, totalSeconds: 0 },
   timed: { mode: "timed", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: 120 },
-  sprint: { mode: "sprint", totalRounds: 5, secondsPerRound: 15, totalSeconds: 0, comboEnabled: true },
-  precision: { mode: "precision", totalRounds: 5, secondsPerRound: 0, totalSeconds: 0, comboEnabled: true },
+  sprint: {
+    mode: "sprint",
+    totalRounds: 5,
+    secondsPerRound: 15,
+    totalSeconds: 0,
+    comboEnabled: true,
+  },
+  precision: {
+    mode: "precision",
+    totalRounds: 5,
+    secondsPerRound: 0,
+    totalSeconds: 0,
+    comboEnabled: true,
+  },
   survival: {
     mode: "survival",
     totalRounds: Infinity,
@@ -85,7 +97,13 @@ export const DEFAULT_CONFIGS: Record<GeoGameMode, GeoGameConfig> = {
     lives: 3,
     comboEnabled: true,
   },
-  daily: { mode: "daily", totalRounds: 5, secondsPerRound: 60, totalSeconds: 0, comboEnabled: true },
+  daily: {
+    mode: "daily",
+    totalRounds: 5,
+    secondsPerRound: 60,
+    totalSeconds: 0,
+    comboEnabled: true,
+  },
 };
 
 /** Penalità moltiplicativa per ogni indizio extra oltre il primo. */
@@ -199,8 +217,7 @@ export function createGame(
   const finiteRoundModes: GeoGameMode[] = ["challenge", "sprint", "precision", "daily"];
   const wanted = finiteRoundModes.includes(config.mode) ? config.totalRounds : 50;
   const targets = pickLocations(dataset, wanted, rng);
-  const livesRemaining =
-    config.mode === "survival" ? (config.lives ?? SURVIVAL_MAX_LIVES) : null;
+  const livesRemaining = config.mode === "survival" ? (config.lives ?? SURVIVAL_MAX_LIVES) : null;
 
   return {
     config,
@@ -302,9 +319,7 @@ export function submitGuess(
   // Vite per survival
   let livesRemaining = state.livesRemaining;
   if (state.config.mode === "survival") {
-    const failed =
-      distanceKm === null ||
-      distanceKm > SURVIVAL_FAIL_THRESHOLD_KM;
+    const failed = distanceKm === null || distanceKm > SURVIVAL_FAIL_THRESHOLD_KM;
     if (failed && livesRemaining !== null) {
       livesRemaining = Math.max(0, livesRemaining - 1);
     }
@@ -345,7 +360,11 @@ export function advanceRound(state: GeoGameState, now: number = Date.now()): Geo
   if (state.phase === "finished") return state;
 
   // Survival: se vite esaurite, fine
-  if (state.config.mode === "survival" && state.livesRemaining !== null && state.livesRemaining <= 0) {
+  if (
+    state.config.mode === "survival" &&
+    state.livesRemaining !== null &&
+    state.livesRemaining <= 0
+  ) {
     return { ...state, phase: "finished" };
   }
 

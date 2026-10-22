@@ -733,7 +733,10 @@ export default function ProfilePage() {
 }
 
 function MissionsSection() {
-  const [missions, setMissions] = useState<{ daily: ReturnType<typeof getDailyMissions>; weekly: ReturnType<typeof getWeeklyMissions> }>({
+  const [missions, setMissions] = useState<{
+    daily: ReturnType<typeof getDailyMissions>;
+    weekly: ReturnType<typeof getWeeklyMissions>;
+  }>({
     daily: [],
     weekly: [],
   });
@@ -760,9 +763,13 @@ function MissionsSection() {
     <div className="grid md:grid-cols-2 gap-4">
       <Card className="space-y-3">
         <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center">📅</span>
+          <span className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center">
+            📅
+          </span>
           <h3 className="font-black text-white">Missioni giornaliere</h3>
-          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-amber-500 text-[#1a1200]">OGGI</span>
+          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-amber-500 text-[#1a1200]">
+            OGGI
+          </span>
         </div>
         <div className="space-y-2">
           {progress.map((m) => (
@@ -774,23 +781,34 @@ function MissionsSection() {
                   <div className="text-xs text-white/50">{m.def.description}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-black text-white">{m.current}/{m.def.target}</div>
+                  <div className="text-xs font-black text-white">
+                    {m.current}/{m.def.target}
+                  </div>
                   <div className="text-[10px] font-bold text-amber-300">+{m.def.xp} XP</div>
                 </div>
               </div>
               <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all" style={{ width: `${m.progress * 100}%` }} />
+                <div
+                  className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all"
+                  style={{ width: `${m.progress * 100}%` }}
+                />
               </div>
-              {m.completed && <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>}
+              {m.completed && (
+                <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>
+              )}
             </div>
           ))}
         </div>
       </Card>
       <Card className="space-y-3">
         <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center">🗓️</span>
+          <span className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center">
+            🗓️
+          </span>
           <h3 className="font-black text-white">Missioni settimanali</h3>
-          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-violet-500 text-white">SETTIMANA</span>
+          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-violet-500 text-white">
+            SETTIMANA
+          </span>
         </div>
         <div className="space-y-2">
           {weeklyProgress.map((m) => (
@@ -802,14 +820,21 @@ function MissionsSection() {
                   <div className="text-xs text-white/50">{m.def.description}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-black text-white">{m.current}/{m.def.target}</div>
+                  <div className="text-xs font-black text-white">
+                    {m.current}/{m.def.target}
+                  </div>
                   <div className="text-[10px] font-bold text-violet-300">+{m.def.xp} XP</div>
                 </div>
               </div>
               <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-violet-400 to-purple-500 transition-all" style={{ width: `${m.progress * 100}%` }} />
+                <div
+                  className="h-full bg-gradient-to-r from-violet-400 to-purple-500 transition-all"
+                  style={{ width: `${m.progress * 100}%` }}
+                />
               </div>
-              {m.completed && <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>}
+              {m.completed && (
+                <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>
+              )}
             </div>
           ))}
         </div>

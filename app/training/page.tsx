@@ -41,8 +41,12 @@ export default function TrainingPage() {
           </div>
           <h1 className="text-4xl font-black tracking-tighter text-white mt-3">Allenamento</h1>
           <p className="text-white/60 max-w-2xl mt-2 leading-relaxed">
-            Esplora senza pressione. Filtra per continente, studia schede dettaglio e poi mettiti alla prova in{" "}
-            <Link href="/play" className="text-emerald-300 underline underline-offset-4 font-semibold">
+            Esplora senza pressione. Filtra per continente, studia schede dettaglio e poi mettiti
+            alla prova in{" "}
+            <Link
+              href="/play"
+              className="text-emerald-300 underline underline-offset-4 font-semibold"
+            >
               Gioca →
             </Link>
           </p>
@@ -84,8 +88,18 @@ export default function TrainingPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-3.5 bg-white/[0.06] border border-white/15 rounded-2xl text-white placeholder-white/30 focus:outline-none focus:border-[#00d9a5] focus:ring-2 focus:ring-[#00d9a5]/20 transition-all backdrop-blur-sm"
           />
-          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
         </div>
 
@@ -109,8 +123,13 @@ export default function TrainingPage() {
             <div className="flex items-center gap-4">
               <span className="text-5xl">{selectedCountry.flag}</span>
               <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">{selectedCountry.name}</h2>
-                <p className="text-white/60">Capitale: <span className="text-white font-semibold">{selectedCountry.capital}</span></p>
+                <h2 className="text-2xl font-black text-white tracking-tight">
+                  {selectedCountry.name}
+                </h2>
+                <p className="text-white/60">
+                  Capitale:{" "}
+                  <span className="text-white font-semibold">{selectedCountry.capital}</span>
+                </p>
               </div>
             </div>
             <button
@@ -127,10 +146,15 @@ export default function TrainingPage() {
               { k: "Continente", v: continentLabel(selectedCountry.continent) },
               { k: "Popolazione", v: formatNumber(selectedCountry.population) },
               { k: "Superficie", v: `${formatNumber(selectedCountry.area)} km²` },
-              { k: "Coordinate", v: `${selectedCountry.coordinates.lat.toFixed(1)}°, ${selectedCountry.coordinates.lng.toFixed(1)}°` },
+              {
+                k: "Coordinate",
+                v: `${selectedCountry.coordinates.lat.toFixed(1)}°, ${selectedCountry.coordinates.lng.toFixed(1)}°`,
+              },
             ].map((s) => (
               <div key={s.k} className="rounded-2xl bg-white/5 border border-white/10 p-3">
-                <div className="text-[11px] font-bold tracking-widest uppercase text-white/40">{s.k}</div>
+                <div className="text-[11px] font-bold tracking-widest uppercase text-white/40">
+                  {s.k}
+                </div>
                 <div className="text-sm font-bold text-white mt-1">{s.v}</div>
               </div>
             ))}
@@ -144,12 +168,21 @@ export default function TrainingPage() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCountries.map((country) => (
-          <Card key={country.id} hover onClick={() => setSelectedCountry(country)} className="!p-4 group">
+          <Card
+            key={country.id}
+            hover
+            onClick={() => setSelectedCountry(country)}
+            className="!p-4 group"
+          >
             <div className="flex items-center gap-3">
-              <span className="text-3xl group-hover:scale-110 transition-transform">{country.flag}</span>
+              <span className="text-3xl group-hover:scale-110 transition-transform">
+                {country.flag}
+              </span>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-white truncate">{country.name}</p>
-                <p className="text-sm text-white/50 truncate">{country.capital} • {continentLabel(country.continent)}</p>
+                <p className="text-sm text-white/50 truncate">
+                  {country.capital} • {continentLabel(country.continent)}
+                </p>
               </div>
               <span className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-white/40 group-hover:bg-white group-hover:text-[#0a1433] transition-colors">
                 →
@@ -161,7 +194,9 @@ export default function TrainingPage() {
 
       {filteredCountries.length === 0 && (
         <div className="text-center py-12">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl mb-3">🔍</div>
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl mb-3">
+            🔍
+          </div>
           <p className="text-white/60 font-medium">Nessun paese trovato</p>
           <p className="text-white/30 text-sm">Prova con un altro termine o continente</p>
         </div>

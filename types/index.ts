@@ -156,13 +156,7 @@ export interface GameLocation {
 
 /** Modalità del gioco geografico sul globo */
 export type GeoGameMode =
-  | "training"
-  | "challenge"
-  | "timed"
-  | "sprint"
-  | "precision"
-  | "survival"
-  | "daily";
+  "training" | "challenge" | "timed" | "sprint" | "precision" | "survival" | "daily";
 
 /** Calcolo del livello */
 export interface LevelInfo {

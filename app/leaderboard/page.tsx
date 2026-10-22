@@ -79,10 +79,13 @@ export default function LeaderboardPage() {
   };
 
   const getRankStyle = (rank: number, isMe: boolean) => {
-    if (isMe) return "bg-gradient-to-r from-emerald-500/15 to-teal-500/10 border-emerald-500/30 shadow-[0_8px_24px_rgba(0,217,165,0.15)]";
-    if (rank === 1) return "bg-gradient-to-r from-amber-400/15 to-yellow-500/10 border-amber-400/30";
+    if (isMe)
+      return "bg-gradient-to-r from-emerald-500/15 to-teal-500/10 border-emerald-500/30 shadow-[0_8px_24px_rgba(0,217,165,0.15)]";
+    if (rank === 1)
+      return "bg-gradient-to-r from-amber-400/15 to-yellow-500/10 border-amber-400/30";
     if (rank === 2) return "bg-gradient-to-r from-slate-400/15 to-slate-500/10 border-white/15";
-    if (rank === 3) return "bg-gradient-to-r from-orange-500/15 to-amber-600/10 border-orange-500/30";
+    if (rank === 3)
+      return "bg-gradient-to-r from-orange-500/15 to-amber-600/10 border-orange-500/30";
     return "bg-white/[0.04] border-white/10";
   };
 
@@ -132,19 +135,31 @@ export default function LeaderboardPage() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white text-[#0a1433] text-xs font-black tracking-widest">
             🏆 CLASSIFICHE PREMIUM
           </div>
-          <h1 className="text-4xl font-black tracking-tighter text-white">I migliori esploratori</h1>
-          <p className="text-white/60">Scala la vetta con abilità pura — nessun bot, nessun punteggio inventato.</p>
+          <h1 className="text-4xl font-black tracking-tighter text-white">
+            I migliori esploratori
+          </h1>
+          <p className="text-white/60">
+            Scala la vetta con abilità pura — nessun bot, nessun punteggio inventato.
+          </p>
           <div className="flex items-center justify-center gap-2 pt-2 flex-wrap">
             <span className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-white/80 backdrop-blur-sm">
-              <span className={`w-2 h-2 rounded-full ${source === "cloud" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+              <span
+                className={`w-2 h-2 rounded-full ${source === "cloud" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`}
+              />
               {sourceLabel}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => void loadData(timeRange, scope)} disabled={loading}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void loadData(timeRange, scope)}
+              disabled={loading}
+            >
               {loading ? "Aggiornamento…" : "🔄 Aggiorna"}
             </Button>
           </div>
           <p className="text-xs text-white/40 max-w-xl mx-auto leading-relaxed">
-            A pari punti la posizione è condivisa; a parità ordina chi ha giocato meno. I nuovi giocatori compaiono dopo la prima partita.
+            A pari punti la posizione è condivisa; a parità ordina chi ha giocato meno. I nuovi
+            giocatori compaiono dopo la prima partita.
           </p>
         </div>
       </div>
@@ -186,16 +201,25 @@ export default function LeaderboardPage() {
       {scope === "friends" && (
         <Card className="space-y-4">
           <h2 className="text-lg font-black text-white flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center text-sm">👥</span>
+            <span className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center text-sm">
+              👥
+            </span>
             I tuoi amici
           </h2>
           {!isSupabaseConfigured ? (
-            <p role="status" className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
-              Gli amici richiedono il cloud, ma Supabase non è configurato su questo sito: nessun elenco finto viene mostrato.
+            <p
+              role="status"
+              className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3"
+            >
+              Gli amici richiedono il cloud, ma Supabase non è configurato su questo sito: nessun
+              elenco finto viene mostrato.
             </p>
           ) : (
             <>
-              <form onSubmit={(e) => void handleAddFriend(e)} className="flex flex-col sm:flex-row gap-3">
+              <form
+                onSubmit={(e) => void handleAddFriend(e)}
+                className="flex flex-col sm:flex-row gap-3"
+              >
                 <input
                   id="friend-username"
                   type="text"
@@ -209,8 +233,22 @@ export default function LeaderboardPage() {
                   Aggiungi
                 </Button>
               </form>
-              {friendStatus && <p role="status" className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2">{friendStatus}</p>}
-              {friendError && <p role="alert" className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2">{friendError}</p>}
+              {friendStatus && (
+                <p
+                  role="status"
+                  className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2"
+                >
+                  {friendStatus}
+                </p>
+              )}
+              {friendError && (
+                <p
+                  role="alert"
+                  className="text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-4 py-2"
+                >
+                  {friendError}
+                </p>
+              )}
               {friends.length > 0 && (
                 <ul className="flex flex-wrap gap-2">
                   {friends.map((friend) => (
@@ -298,7 +336,10 @@ export default function LeaderboardPage() {
 
           <div className="space-y-3">
             {entries.map((entry) => (
-              <Card key={entry.playerId} className={`!p-4 !rounded-2xl ${getRankStyle(entry.rank, entry.isCurrentPlayer)}`}>
+              <Card
+                key={entry.playerId}
+                className={`!p-4 !rounded-2xl ${getRankStyle(entry.rank, entry.isCurrentPlayer)}`}
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center font-black text-white shrink-0">
                     {getRankBadge(entry.rank)}
@@ -309,15 +350,24 @@ export default function LeaderboardPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-black text-white truncate">{entry.username}</p>
-                      {entry.isCurrentPlayer && <span className="text-[10px] font-black px-2 py-1 rounded-full bg-emerald-500 text-white">TU</span>}
+                      {entry.isCurrentPlayer && (
+                        <span className="text-[10px] font-black px-2 py-1 rounded-full bg-emerald-500 text-white">
+                          TU
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-white/50">
-                      Livello {entry.level} • {levelTitle(entry.level)} • {entry.gamesPlayed} partite
+                      Livello {entry.level} • {levelTitle(entry.level)} • {entry.gamesPlayed}{" "}
+                      partite
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-lg font-black text-white">{formatNumber(entry.totalScore)}</p>
-                    <p className="text-[11px] font-bold tracking-widest uppercase text-white/40">punti</p>
+                    <p className="text-lg font-black text-white">
+                      {formatNumber(entry.totalScore)}
+                    </p>
+                    <p className="text-[11px] font-bold tracking-widest uppercase text-white/40">
+                      punti
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -327,8 +377,11 @@ export default function LeaderboardPage() {
           {!meInList && me.gamesPlayed > 0 && (
             <Card className="!p-4 border-dashed border-white/20 bg-white/5">
               <p className="text-sm text-white/70">
-                <strong className="text-white">Tu:</strong> {formatNumber(me.totalScore)} punti in {me.gamesPlayed} partite su questo dispositivo.
-                {source === "cloud" && !me.authUserId ? " Accedi per pubblicare il tuo punteggio." : " Non sei ancora tra le posizioni mostrate."}
+                <strong className="text-white">Tu:</strong> {formatNumber(me.totalScore)} punti in{" "}
+                {me.gamesPlayed} partite su questo dispositivo.
+                {source === "cloud" && !me.authUserId
+                  ? " Accedi per pubblicare il tuo punteggio."
+                  : " Non sei ancora tra le posizioni mostrate."}
               </p>
             </Card>
           )}
@@ -336,11 +389,17 @@ export default function LeaderboardPage() {
       )}
 
       <Card className="space-y-3">
-        <h2 className="text-sm font-black tracking-widest uppercase text-white/60">Ultime multiplayer</h2>
+        <h2 className="text-sm font-black tracking-widest uppercase text-white/60">
+          Ultime multiplayer
+        </h2>
         {multiplayerHistory.length === 0 ? (
           <p className="text-sm text-white/50">
-            Nessun risultato multiplayer registrato. Le partite online con account cloud compaiono qui e nello storico del{" "}
-            <Link href="/profile" className="text-emerald-300 underline underline-offset-2 font-semibold">
+            Nessun risultato multiplayer registrato. Le partite online con account cloud compaiono
+            qui e nello storico del{" "}
+            <Link
+              href="/profile"
+              className="text-emerald-300 underline underline-offset-2 font-semibold"
+            >
               profilo
             </Link>
             .
@@ -353,10 +412,18 @@ export default function LeaderboardPage() {
                 className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm"
               >
                 <span className="font-bold text-white">{modeLabel(entry.mode)}</span>
-                {entry.won && <span className="px-2 py-1 rounded-full bg-amber-500/15 border border-amber-500/20 text-amber-300 text-xs font-bold">🏆 Vittoria</span>}
+                {entry.won && (
+                  <span className="px-2 py-1 rounded-full bg-amber-500/15 border border-amber-500/20 text-amber-300 text-xs font-bold">
+                    🏆 Vittoria
+                  </span>
+                )}
                 <span className="text-white/80 font-semibold">{formatNumber(entry.score)} pt</span>
-                <span className="text-white/50">{entry.correct}/{entry.rounds} corrette</span>
-                <span className="text-white/30 ml-auto text-xs">{new Date(entry.endedAt).toLocaleDateString("it-IT")}</span>
+                <span className="text-white/50">
+                  {entry.correct}/{entry.rounds} corrette
+                </span>
+                <span className="text-white/30 ml-auto text-xs">
+                  {new Date(entry.endedAt).toLocaleDateString("it-IT")}
+                </span>
               </li>
             ))}
           </ul>

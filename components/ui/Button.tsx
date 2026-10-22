@@ -14,7 +14,8 @@ const variantStyles: Record<string, string> = {
     "bg-gradient-to-r from-[#00d9a5] to-[#0ea5e9] hover:from-[#00e6b0] hover:to-[#38bdf8] text-[#001a12] shadow-[0_8px_24px_rgba(0,217,165,0.25)] hover:shadow-[0_12px_32px_rgba(0,217,165,0.35)] hover:-translate-y-0.5 active:translate-y-0",
   secondary:
     "bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] text-white border border-white/10 hover:border-white/15 backdrop-blur-md",
-  ghost: "bg-transparent hover:bg-white/5 text-slate-300 hover:text-white border border-transparent",
+  ghost:
+    "bg-transparent hover:bg-white/5 text-slate-300 hover:text-white border border-transparent",
   danger:
     "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-lg shadow-rose-500/20",
   accent:
@@ -58,7 +59,14 @@ export function Button({
           viewBox="0 0 24 24"
           aria-hidden
         >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
           <path
             className="opacity-75"
             fill="currentColor"

@@ -20,12 +20,11 @@ export default function HomePage() {
               NUOVA STAGIONE — SFIDA QUOTIDIANA + COMBO
             </div>
             <h1 className="text-5xl md:text-6xl font-black tracking-tighter leading-[0.9] text-white">
-              Esplora il
-              <span className="gradient-text block">mondo, giocando.</span>
+              Esplora il <span className="gradient-text block">mondo, giocando.</span>
             </h1>
             <p className="text-lg text-white/60 leading-relaxed max-w-xl">
-              Un globo NASA interattivo al centro di tutto. Indizi curati, combo che premiano la precisione e
-              modalità per ogni umore — dal relax allo sprint di 15 secondi.
+              Un globo NASA interattivo al centro di tutto. Indizi curati, combo che premiano la
+              precisione e modalità per ogni umore — dal relax allo sprint di 15 secondi.
             </p>
             <div className="flex flex-wrap gap-3 pt-1">
               <Link href="/play">
@@ -50,7 +49,9 @@ export default function HomePage() {
           <div className="relative lg:h-[420px] h-[360px] rounded-[1.5rem] overflow-hidden border border-white/15 bg-[#02061a] shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
             <GlobeHero />
             <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-              <div className="px-3 py-1.5 rounded-full bg-white text-[#0a1433] text-xs font-bold">🌍 Globo NASA Blue Marble</div>
+              <div className="px-3 py-1.5 rounded-full bg-white text-[#0a1433] text-xs font-bold">
+                🌍 Globo NASA Blue Marble
+              </div>
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#02061a]/80 backdrop-blur border border-white/15 text-xs font-semibold text-white/80">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 Ruota • Zoom • Esplora
@@ -64,17 +65,23 @@ export default function HomePage() {
           <div className="flex gap-6">
             <div>
               <div className="text-white font-black text-lg leading-none">130+</div>
-              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">Luoghi reali</div>
+              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">
+                Luoghi reali
+              </div>
             </div>
             <div className="w-px bg-white/10" />
             <div>
               <div className="text-white font-black text-lg leading-none">7</div>
-              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">Modalità</div>
+              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">
+                Modalità
+              </div>
             </div>
             <div className="w-px bg-white/10" />
             <div>
               <div className="text-white font-black text-lg leading-none">∞</div>
-              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">Rigocabilità</div>
+              <div className="text-white/50 text-xs font-semibold tracking-widest uppercase">
+                Rigocabilità
+              </div>
             </div>
           </div>
           <div className="text-white/50 text-xs font-medium self-center hidden md:block">
@@ -93,7 +100,8 @@ export default function HomePage() {
             </div>
             <h3 className="text-white font-bold">Gameplay immediato</h3>
             <p className="text-sm text-white/60 leading-relaxed">
-              Nessuna schermata inutile. Round → feedback → avanti. Auto-avanza opzionale, tempi morti zero.
+              Nessuna schermata inutile. Round → feedback → avanti. Auto-avanza opzionale, tempi
+              morti zero.
             </p>
           </div>
         </Card>
@@ -126,21 +134,45 @@ export default function HomePage() {
       {/* Modalità preview */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black tracking-widest uppercase text-white/60">Modalità in evidenza</h2>
+          <h2 className="text-sm font-black tracking-widest uppercase text-white/60">
+            Modalità in evidenza
+          </h2>
           <Link href="/play" className="text-sm font-bold text-white hover:text-emerald-300">
             Vai a Gioca →
           </Link>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { icon: "🏆", name: "Sfida", desc: "La classica 5 round", color: "from-amber-400 to-orange-500" },
-            { icon: "⚡", name: "Sprint", desc: "15s di pressione", color: "from-cyan-400 to-blue-500" },
-            { icon: "🎯", name: "Precisione", desc: "Senza timer", color: "from-emerald-400 to-teal-500" },
-            { icon: "🛡️", name: "Sopravvivenza", desc: "3 vite", color: "from-rose-400 to-pink-500" },
+            {
+              icon: "🏆",
+              name: "Sfida",
+              desc: "La classica 5 round",
+              color: "from-amber-400 to-orange-500",
+            },
+            {
+              icon: "⚡",
+              name: "Sprint",
+              desc: "15s di pressione",
+              color: "from-cyan-400 to-blue-500",
+            },
+            {
+              icon: "🎯",
+              name: "Precisione",
+              desc: "Senza timer",
+              color: "from-emerald-400 to-teal-500",
+            },
+            {
+              icon: "🛡️",
+              name: "Sopravvivenza",
+              desc: "3 vite",
+              color: "from-rose-400 to-pink-500",
+            },
           ].map((m) => (
             <Link key={m.name} href="/play" className="group">
               <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5 hover:bg-white/[0.08] hover:border-white/15 hover:-translate-y-0.5 transition-all">
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${m.color} flex items-center justify-center text-lg shadow-md group-hover:scale-110 transition-transform`}>
+                <div
+                  className={`w-10 h-10 rounded-xl bg-gradient-to-br ${m.color} flex items-center justify-center text-lg shadow-md group-hover:scale-110 transition-transform`}
+                >
                   {m.icon}
                 </div>
                 <div className="mt-3 text-white font-bold">{m.name}</div>
@@ -154,16 +186,34 @@ export default function HomePage() {
       {/* Features grid legacy but refreshed */}
       <section className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card hover>
-          <CardHeader title="Globo 3D NASA" description="Blue Marble 4K + picking preciso" icon={<span className="text-2xl">🌍</span>} />
-          <p className="text-sm text-white/60">Ogni click è una coordenata reale Haversine. Arco di volo e midpoint animano il reveal.</p>
+          <CardHeader
+            title="Globo 3D NASA"
+            description="Blue Marble 4K + picking preciso"
+            icon={<span className="text-2xl">🌍</span>}
+          />
+          <p className="text-sm text-white/60">
+            Ogni click è una coordenata reale Haversine. Arco di volo e midpoint animano il reveal.
+          </p>
         </Card>
         <Card hover>
-          <CardHeader title="Multiplayer vero" description="Realtime Supabase, no bot" icon={<span className="text-2xl">👥</span>} />
-          <p className="text-sm text-white/60">Stanze, ready, round sincronizzati e classifica finale — tutto server-side.</p>
+          <CardHeader
+            title="Multiplayer vero"
+            description="Realtime Supabase, no bot"
+            icon={<span className="text-2xl">👥</span>}
+          />
+          <p className="text-sm text-white/60">
+            Stanze, ready, round sincronizzati e classifica finale — tutto server-side.
+          </p>
         </Card>
         <Card hover>
-          <CardHeader title="Progressione gratificante" description="XP, livelli, missioni, cosmetici" icon={<span className="text-2xl">📈</span>} />
-          <p className="text-sm text-white/60">Solo abilità: streak, missioni e collezionabili cosmetici, zero pay-to-win.</p>
+          <CardHeader
+            title="Progressione gratificante"
+            description="XP, livelli, missioni, cosmetici"
+            icon={<span className="text-2xl">📈</span>}
+          />
+          <p className="text-sm text-white/60">
+            Solo abilità: streak, missioni e collezionabili cosmetici, zero pay-to-win.
+          </p>
         </Card>
       </section>
 
@@ -171,8 +221,13 @@ export default function HomePage() {
       <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#00d9a5]/15 via-[#0ea5e9]/10 to-[#a78bfa]/10 backdrop-blur-xl p-8 md:p-10 text-center">
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
         <div className="relative space-y-4">
-          <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-white">Pronto a partire?</h2>
-          <p className="text-white/60 max-w-xl mx-auto">Gioca come ospite o crea un account per salvare progressi, streak e classifica su ogni dispositivo.</p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-white">
+            Pronto a partire?
+          </h2>
+          <p className="text-white/60 max-w-xl mx-auto">
+            Gioca come ospite o crea un account per salvare progressi, streak e classifica su ogni
+            dispositivo.
+          </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
             <Link href="/play">
               <Button size="lg">🎮 Gioca ora — è gratis</Button>

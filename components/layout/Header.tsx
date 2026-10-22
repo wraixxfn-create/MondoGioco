@@ -73,7 +73,10 @@ export function Header() {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden lg:flex items-center gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-md" aria-label="Navigazione principale">
+          <nav
+            className="hidden lg:flex items-center gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-md"
+            aria-label="Navigazione principale"
+          >
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -127,9 +130,19 @@ export function Header() {
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {mobileMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
                 )}
               </svg>
             </button>
@@ -151,23 +164,33 @@ export function Header() {
                   aria-current={isActive(item.href) ? "page" : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`px-4 py-3 rounded-xl text-sm font-semibold transition-colors flex items-center gap-3 ${
-                    isActive(item.href) ? "bg-white text-[#0a1433]" : "text-white/80 hover:bg-white/10 hover:text-white bg-white/[0.04] border border-white/10"
+                    isActive(item.href)
+                      ? "bg-white text-[#0a1433]"
+                      : "text-white/80 hover:bg-white/10 hover:text-white bg-white/[0.04] border border-white/10"
                   }`}
                 >
-                  <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-sm">{item.icon}</span>
+                  <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-sm">
+                    {item.icon}
+                  </span>
                   {item.label}
                 </Link>
               ))}
               <div className="pt-3 flex gap-3">
                 <Link href="/auth" onClick={() => setMobileMenuOpen(false)} className="flex-1">
-                  <span className="flex items-center justify-center w-full px-4 py-3 rounded-xl bg-white text-[#0a1433] font-bold">Accedi — crea account</span>
+                  <span className="flex items-center justify-center w-full px-4 py-3 rounded-xl bg-white text-[#0a1433] font-bold">
+                    Accedi — crea account
+                  </span>
                 </Link>
               </div>
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 mt-2">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00d9a5] to-[#0ea5e9] flex items-center justify-center">{avatarEmoji}</div>
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00d9a5] to-[#0ea5e9] flex items-center justify-center">
+                  {avatarEmoji}
+                </div>
                 <div>
                   <div className="text-sm font-bold text-white">Livello {level}</div>
-                  <div className="text-xs text-white/60">{xp.toLocaleString("it-IT")} XP • {Math.round(progress)}% al prossimo</div>
+                  <div className="text-xs text-white/60">
+                    {xp.toLocaleString("it-IT")} XP • {Math.round(progress)}% al prossimo
+                  </div>
                 </div>
               </div>
             </div>
