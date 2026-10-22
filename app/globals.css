@@ -1,49 +1,79 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --card: #1e293b;
-  --primary: #10b981;
-  --primary-hover: #059669;
-  --secondary: #64748b;
-  --accent: #fbbf24;
-  --danger: #ef4444;
-  --border: #334155;
-  --muted: #94a3b8;
+  --background: #02061a;
+  --background-soft: #0b1432;
+  --foreground: #f1f5f9;
+  --surface: #0f1a33;
+  --surface-elevated: #16244d;
+  --card: #111e3a;
+  --card-hover: #1a2a55;
+  --primary: #00d9a5;
+  --primary-hover: #00c195;
+  --primary-soft: rgba(0, 217, 165, 0.12);
+  --secondary: #5b6b8a;
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.15);
+  --danger: #f43f5e;
+  --border: #1e2e5a;
+  --border-strong: #24365f;
+  --muted: #8a9ac1;
+  --muted-strong: #a8b6d8;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.75rem;
+  --shadow-soft: 0 8px 40px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  --shadow-glow: 0 0 40px rgba(0, 217, 165, 0.15);
 }
 
+/* Fonts provided by next/font in layout.tsx as CSS variables */
 body {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(56, 189, 248, 0.18), transparent 60%),
+    radial-gradient(900px 600px at 85% 0%, rgba(0, 217, 165, 0.14), transparent 55%),
+    radial-gradient(700px 500px at 50% 120%, rgba(99, 102, 241, 0.12), transparent 60%),
+    linear-gradient(180deg, #02061a 0%, #07102a 40%, #0a1433 100%);
   color: var(--foreground);
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  letter-spacing: -0.01em;
 }
 
-/* Scrollbar personalizzata */
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: -0.03em;
+  font-weight: 750;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #0b1432;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 5px;
+  background: #1e2e5a;
+  border-radius: 999px;
+  border: 2px solid #0b1432;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #2a3d7a;
 }
 
-/* Animazioni personalizzate */
+/* Selection */
+::selection {
+  background: rgba(0, 217, 165, 0.35);
+  color: #fff;
+}
+
+/* Animations */
 @keyframes float {
   0%,
   100% {
@@ -53,7 +83,6 @@ body {
     transform: translateY(-10px);
   }
 }
-
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
@@ -61,39 +90,177 @@ body {
 @keyframes glow {
   0%,
   100% {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 20px rgba(0, 217, 165, 0.25);
   }
   50% {
-    box-shadow: 0 0 40px rgba(16, 185, 129, 0.6);
+    box-shadow: 0 0 36px rgba(0, 217, 165, 0.45);
   }
 }
-
 .animate-glow {
   animation: glow 2s ease-in-out infinite;
 }
 
-/* Gradient text */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes score-pop {
+  0% {
+    transform: scale(0.8) translateY(8px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06) translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes combo-burst {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes aurora-shift {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Utilities */
 .gradient-text {
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  background: linear-gradient(135deg, #00d9a5 0%, #38bdf8 45%, #a78bfa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
-/* Glass morphism */
+.gradient-text-warm {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 .glass {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(51, 65, 85, 0.5);
+  background: linear-gradient(180deg, rgba(22, 36, 77, 0.78), rgba(15, 26, 51, 0.72));
+  backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-soft);
+}
+.glass-strong {
+  background: linear-gradient(180deg, rgba(26, 42, 85, 0.88), rgba(17, 30, 58, 0.9));
+  backdrop-filter: blur(20px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+.aurora-border {
+  position: relative;
+}
+.aurora-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(0, 217, 165, 0.5), rgba(56, 189, 248, 0.4), rgba(167, 139, 250, 0.35));
+  z-index: -1;
+  opacity: 0.7;
+}
+.score-pop {
+  animation: score-pop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.combo-burst {
+  animation: combo-burst 0.35s ease-out;
+}
+.slide-in {
+  animation: slide-in 0.4s ease-out;
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* Focus visible per accessibilità */
+/* Cards premium */
+.card-premium {
+  background: linear-gradient(180deg, rgba(22, 36, 77, 0.7) 0%, rgba(15, 26, 51, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+  transition:
+    border-color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease;
+}
+.card-premium:hover {
+  border-color: rgba(0, 217, 165, 0.18);
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(0, 217, 165, 0.08);
+}
+.card-premium--active {
+  border-color: rgba(0, 217, 165, 0.35) !important;
+  background: linear-gradient(180deg, rgba(0, 217, 165, 0.08), rgba(22, 36, 77, 0.85)) !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 0 24px rgba(0, 217, 165, 0.15) !important;
+}
+
+/* Focus */
 *:focus-visible {
-  outline: 2px solid #10b981;
+  outline: 2px solid #00d9a5;
   outline-offset: 2px;
+  border-radius: 0.5rem;
 }
-
-/* Evita il doppio tap-to-zoom sui controlli touch senza bloccare lo zoom pagina */
 button,
 a,
 input,
@@ -102,28 +269,22 @@ textarea,
 [role="button"] {
   touch-action: manipulation;
 }
-
-/* Link "salta al contenuto" per la navigazione da tastiera */
 .skip-link {
   position: absolute;
   left: -9999px;
   top: 0;
   z-index: 100;
-  background: #059669;
-  color: #ffffff;
+  background: #00c195;
+  color: #001a12;
   padding: 0.75rem 1.25rem;
   border-radius: 0 0 0.75rem 0;
-  font-weight: 600;
+  font-weight: 700;
 }
 .skip-link:focus {
   left: 0;
 }
 
-/*
- * Riduzione delle animazioni: rispettata sia dalla preferenza di sistema
- * (prefers-reduced-motion) sia dall'impostazione in-app "Riduci animazioni"
- * (attributo data-reduce-motion applicato da Header/impostazioni profilo).
- */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -134,7 +295,6 @@ textarea,
     scroll-behavior: auto !important;
   }
 }
-
 html[data-reduce-motion="true"] *,
 html[data-reduce-motion="true"] *::before,
 html[data-reduce-motion="true"] *::after {
@@ -142,4 +302,9 @@ html[data-reduce-motion="true"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+/* Mobile tap highlight */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

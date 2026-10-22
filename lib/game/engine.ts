@@ -17,7 +17,11 @@
 //               round, punteggio cumulativo e riepilogo finale.
 // - "timed"     Contro il tempo: un unico timer totale; si giocano
 //               più round possibile finché scade il tempo.
-//
+// - "sprint"    Sprint: 5 round rapidissimi (15s), combo bonus.
+// - "precision" Precisione: 5 round senza timer, penalità indizi
+//               più severa, bonus precisione.
+// - "survival"  Sopravvivenza: vite limitate, finisce a 3 errori.
+// - "daily"     Sfida giornaliera: seed giornaliero, 5 round.
 // REGOLE DI PUNTEGGIO (vedi anche geo.ts)
 // - base = calculateScore(distanza_km)  →  0..5000 punti.
 // - penalità indizi (solo challenge/timed): il 1° indizio è gratuito
@@ -61,16 +65,48 @@ export interface GeoGameConfig {
   secondsPerRound: number;
   /** Secondi totali di partita (timed). */
   totalSeconds: number;
+  /** Vite per survival (solo survival) */
+  lives?: number;
+  /** Se true, attiva combo/streak bonus */
+  comboEnabled?: boolean;
 }
 
 export const DEFAULT_CONFIGS: Record<GeoGameMode, GeoGameConfig> = {
   training: { mode: "training", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: 0 },
   challenge: { mode: "challenge", totalRounds: 5, secondsPerRound: 60, totalSeconds: 0 },
   timed: { mode: "timed", totalRounds: Infinity, secondsPerRound: 0, totalSeconds: 120 },
+  sprint: { mode: "sprint", totalRounds: 5, secondsPerRound: 15, totalSeconds: 0, comboEnabled: true },
+  precision: { mode: "precision", totalRounds: 5, secondsPerRound: 0, totalSeconds: 0, comboEnabled: true },
+  survival: {
+    mode: "survival",
+    totalRounds: Infinity,
+    secondsPerRound: 45,
+    totalSeconds: 0,
+    lives: 3,
+    comboEnabled: true,
+  },
+  daily: { mode: "daily", totalRounds: 5, secondsPerRound: 60, totalSeconds: 0, comboEnabled: true },
 };
 
 /** Penalità moltiplicativa per ogni indizio extra oltre il primo. */
 export const HINT_PENALTY_FACTOR = 0.9;
+export const PRECISION_HINT_PENALTY = 0.75;
+
+/** Combo / streak */
+export const COMBO_GOOD_THRESHOLD_KM = 700; // entro 700km = streak continua
+export const COMBO_BONUS_PER_STREAK = 0.05; // +5% per streak dopo il primo
+export const MAX_COMBO_MULTIPLIER = 1.25; // cap 25%
+export const SURVIVAL_FAIL_THRESHOLD_KM = 1500;
+export const SURVIVAL_MAX_LIVES = 3;
+
+/** Seed giornaliero deterministico YYYY-MM-DD -> number */
+export function dailySeed(date: Date = new Date()): number {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  // semplice hash
+  return y * 10000 + m * 100 + d + 0x9e3779b9;
+}
 
 export interface RoundResult {
   location: GameLocation;
@@ -78,7 +114,7 @@ export interface RoundResult {
   guess: GeoCoordinates | null;
   /** Distanza in km, null se nessuna risposta. */
   distanceKm: number | null;
-  /** Punti finali (dopo penalità indizi). */
+  /** Punti finali (dopo penalità indizi + bonus combo). */
   score: number;
   /** Punti dalla sola distanza, prima delle penalità. */
   baseScore: number;
@@ -86,6 +122,12 @@ export interface RoundResult {
   /** Secondi impiegati a rispondere. */
   timeSpentSeconds: number;
   timedOut: boolean;
+  /** Combo streak al momento di questo round (0 se rotto) */
+  streak?: number;
+  /** Bonus combo in punti */
+  bonusScore?: number;
+  /** Moltiplicatore combo applicato (1 = nessuno) */
+  comboMultiplier?: number;
 }
 
 export type GamePhase = "playing" | "revealed" | "finished";
@@ -108,6 +150,12 @@ export interface GeoGameState {
   /** Scadenza dell'intera partita (ms), null se non c'è timer totale. */
   gameExpiresAt: number | null;
   totalScore: number;
+  /** Streak corrente di round buoni (combo) */
+  streak: number;
+  /** Miglior streak della partita */
+  bestStreak: number;
+  /** Vite rimaste (solo survival) */
+  livesRemaining: number | null;
 }
 
 /**
@@ -148,8 +196,11 @@ export function createGame(
   rng: Rng = Math.random,
   now: number = Date.now()
 ): GeoGameState {
-  const wanted = config.mode === "challenge" ? config.totalRounds : 50;
+  const finiteRoundModes: GeoGameMode[] = ["challenge", "sprint", "precision", "daily"];
+  const wanted = finiteRoundModes.includes(config.mode) ? config.totalRounds : 50;
   const targets = pickLocations(dataset, wanted, rng);
+  const livesRemaining =
+    config.mode === "survival" ? (config.lives ?? SURVIVAL_MAX_LIVES) : null;
 
   return {
     config,
@@ -163,6 +214,9 @@ export function createGame(
     roundExpiresAt: config.secondsPerRound > 0 ? now + config.secondsPerRound * 1000 : null,
     gameExpiresAt: config.totalSeconds > 0 ? now + config.totalSeconds * 1000 : null,
     totalScore: 0,
+    streak: 0,
+    bestStreak: 0,
+    livesRemaining,
   };
 }
 
@@ -192,6 +246,18 @@ export function revealNextHint(state: GeoGameState): GeoGameState {
   return { ...state, hintsShown: state.hintsShown + 1 };
 }
 
+function getHintPenalty(config: GeoGameConfig, extraHints: number): number {
+  if (config.mode === "training") return 1;
+  const factor = config.mode === "precision" ? PRECISION_HINT_PENALTY : HINT_PENALTY_FACTOR;
+  return Math.pow(factor, extraHints);
+}
+
+function comboMultiplierForStreak(streak: number): number {
+  if (streak < 2) return 1;
+  const mult = 1 + (streak - 1) * COMBO_BONUS_PER_STREAK;
+  return Math.min(mult, MAX_COMBO_MULTIPLIER);
+}
+
 /**
  * Registra la risposta del giocatore e chiude il round (fase revealed).
  * `guess` null = nessuna risposta (timeout o scadenza timer totale):
@@ -215,25 +281,57 @@ export function submitGuess(
   const baseScore = distanceKm !== null ? calculateScore(distanceKm) : 0;
 
   const extraHints = Math.max(0, state.hintsShown - 1);
-  const penalty = state.config.mode === "training" ? 1 : Math.pow(HINT_PENALTY_FACTOR, extraHints);
-  const score = Math.round(baseScore * penalty);
+  const penalty = getHintPenalty(state.config, extraHints);
+  const scoreAfterHints = Math.round(baseScore * penalty);
+
+  // Combo / streak: si considera "buono" se entro soglia combo
+  const isGoodForStreak = distanceKm !== null && distanceKm <= COMBO_GOOD_THRESHOLD_KM;
+  const newStreak = isGoodForStreak ? state.streak + 1 : 0;
+  const bestStreak = Math.max(state.bestStreak, newStreak);
+
+  let finalScore = scoreAfterHints;
+  let bonusScore = 0;
+  let comboMult = 1;
+  const useCombo = Boolean(state.config.comboEnabled);
+  if (useCombo && isGoodForStreak && scoreAfterHints > 0) {
+    comboMult = comboMultiplierForStreak(newStreak);
+    finalScore = Math.round(scoreAfterHints * comboMult);
+    bonusScore = finalScore - scoreAfterHints;
+  }
+
+  // Vite per survival
+  let livesRemaining = state.livesRemaining;
+  if (state.config.mode === "survival") {
+    const failed =
+      distanceKm === null ||
+      distanceKm > SURVIVAL_FAIL_THRESHOLD_KM;
+    if (failed && livesRemaining !== null) {
+      livesRemaining = Math.max(0, livesRemaining - 1);
+    }
+  }
 
   const result: RoundResult = {
     location: target,
     guess: validGuess,
     distanceKm,
-    score,
+    score: finalScore,
     baseScore,
     hintsUsed: state.hintsShown,
     timeSpentSeconds: Math.max(0, (now - state.roundStartedAt) / 1000),
     timedOut: validGuess === null,
+    streak: newStreak,
+    bonusScore,
+    comboMultiplier: comboMult,
   };
 
   return {
     ...state,
     phase: "revealed",
     results: [...state.results, result],
-    totalScore: state.totalScore + score,
+    totalScore: state.totalScore + finalScore,
+    streak: newStreak,
+    bestStreak,
+    livesRemaining,
   };
 }
 
@@ -246,10 +344,16 @@ export function submitGuess(
 export function advanceRound(state: GeoGameState, now: number = Date.now()): GeoGameState {
   if (state.phase === "finished") return state;
 
+  // Survival: se vite esaurite, fine
+  if (state.config.mode === "survival" && state.livesRemaining !== null && state.livesRemaining <= 0) {
+    return { ...state, phase: "finished" };
+  }
+
   const nextIndex = state.roundIndex + 1;
   const noMoreTargets = nextIndex >= state.targets.length;
+  const finiteModes: GeoGameMode[] = ["challenge", "sprint", "precision", "daily"];
   const roundsDone =
-    state.config.mode === "challenge" && state.results.length >= state.config.totalRounds;
+    finiteModes.includes(state.config.mode) && state.results.length >= state.config.totalRounds;
   const gameTimeOver = isGameExpired(state, now);
 
   if (noMoreTargets || roundsDone || gameTimeOver) {
@@ -288,6 +392,8 @@ export interface GameSummary {
   bullseyes: number;
   maxPossibleScore: number;
   results: RoundResult[];
+  bestStreak: number;
+  totalBonus: number;
 }
 
 export function summarize(state: GeoGameState): GameSummary {
@@ -305,5 +411,7 @@ export function summarize(state: GeoGameState): GameSummary {
     bullseyes: distances.filter((d) => d <= 100).length,
     maxPossibleScore: state.results.length * 5000,
     results: state.results,
+    bestStreak: state.bestStreak ?? 0,
+    totalBonus: state.results.reduce((sum, r) => sum + (r.bonusScore ?? 0), 0),
   };
 }
