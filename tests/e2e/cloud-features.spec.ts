@@ -12,7 +12,7 @@ test.describe("Classifica, Profilo, Account e Multiplayer", () => {
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       await expect(page.getByText(/Solo i tuoi dati locali/i)).toBeVisible();
-      await expect(page.getByText("Nessuna partita registrata")).toBeVisible();
+      await expect(page.getByText("Nessuna partita registrata", { exact: true })).toBeVisible();
       await expect(page.getByText(/giocatori inventati/i)).toBeVisible();
     }
 
@@ -34,12 +34,12 @@ test.describe("Classifica, Profilo, Account e Multiplayer", () => {
     page,
   }) => {
     await page.goto("/profile");
-    await expect(page.getByText("Punti Totali")).toBeVisible();
-    await expect(page.getByText("Accuratezza")).toBeVisible();
-    await expect(page.getByText("Punteggio medio")).toBeVisible();
-    await expect(page.getByText("Prima Partita")).toBeVisible();
-    await expect(page.getByText("Statistiche per modalità")).toBeVisible();
-    await expect(page.getByText("Storico partite")).toBeVisible();
+    await expect(page.getByText("Punti Totali", { exact: true })).toBeVisible();
+    await expect(page.getByText("Accuratezza", { exact: true })).toBeVisible();
+    await expect(page.getByText("Punteggio medio", { exact: true })).toBeVisible();
+    await expect(page.getByText("Prima Partita", { exact: true })).toBeVisible();
+    await expect(page.getByText("Statistiche per modalità", { exact: true })).toBeVisible();
+    await expect(page.getByText("Storico partite", { exact: true })).toBeVisible();
 
     const input = page.getByLabel("Nome in classifica e multiplayer");
     await input.fill("ViaggiatoreMilano");
@@ -102,7 +102,7 @@ test.describe("Classifica, Profilo, Account e Multiplayer", () => {
     page,
   }) => {
     await page.goto("/multiplayer");
-    await expect(page.getByRole("heading", { name: "Multiplayer" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Multiplayer", exact: true })).toBeVisible();
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
       // Senza credenziali NON deve esistere una finta stanza locale.

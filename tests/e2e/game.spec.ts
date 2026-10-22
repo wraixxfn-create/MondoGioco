@@ -37,7 +37,7 @@ test.describe("Gioco geografico — flusso completo", () => {
     // Confermo: deve comparire il risultato con distanza e punti
     await confirm.click();
     await expect(page.getByText(/Risultato del round/i)).toBeVisible();
-    await expect(page.getByText("Distanza")).toBeVisible();
+    await expect(page.getByText("Distanza", { exact: true })).toBeVisible();
     await expect(page.getByText(/^Punti/)).toBeVisible();
 
     // Round successivo
@@ -60,7 +60,9 @@ test.describe("Gioco geografico — flusso completo", () => {
     await page.getByLabel("Latitudine").fill("999");
     await page.getByLabel("Longitudine").fill("0");
     await page.getByRole("button", { name: /Posiziona la puntina qui/i }).click();
-    await expect(page.getByRole("alert")).toContainText(/non valide/i);
+    await expect(page.getByRole("alert").filter({ hasText: /non valide/i })).toContainText(
+      /non valide/i
+    );
   });
 
   test("modalità sfida mostra il timer del round", async ({ page }) => {
