@@ -31,6 +31,7 @@ test.describe("Multiplayer online (richiede Supabase reale)", () => {
     await host.goto("/multiplayer");
     await host.getByRole("button", { name: "Crea Nuova Stanza" }).click({ timeout: 30_000 });
     await host.getByLabel("Nome Stanza").fill("E2E Online");
+    await host.getByLabel("Round").selectOption("3");
     await host.getByRole("button", { name: "Crea Stanza", exact: true }).click();
     await expect(host.getByRole("heading", { name: "E2E Online" })).toBeVisible();
 
@@ -53,15 +54,33 @@ test.describe("Multiplayer online (richiede Supabase reale)", () => {
     await expect(host.getByText(/Domanda 1 di/i)).toBeVisible({ timeout: 30_000 });
     await expect(guest.getByText(/Domanda 1 di/i)).toBeVisible({ timeout: 30_000 });
 
-    // Entrambi rispondono alla prima opzione.
-    await host.getByTestId("mp-answer-option").first().click();
-    await guest.getByTestId("mp-answer-option").first().click();
+    // Completa tutti e tre i round: con due risposte il server rivela il round
+    // e avanza automaticamente dopo il countdown di reveal.
+    for (let roundIndex = 1; roundIndex <= 3; roundIndex += 1) {
+      await expect(host.getByText(`Domanda ${roundIndex} di 3`)).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(guest.getByText(`Domanda ${roundIndex} di 3`)).toBeVisible({
+        timeout: 30_000,
+      });
+      await host.getByTestId("mp-answer-option").first().click();
+      await guest.getByTestId("mp-answer-option").first().click();
 
-    // La soluzione viene mostrata dal server dopo la chiusura del round.
-    await expect(host.getByText("Soluzione · round 1 di", { exact: false })).toBeVisible({
-      timeout: 30_000,
-    });
-    await expect(host.getByText(/Prossimo round tra|Classifica finale/)).toBeVisible();
+      await expect(
+        host.getByText(`Soluzione · round ${roundIndex} di 3`, { exact: false })
+      ).toBeVisible({ timeout: 30_000 });
+      await expect(
+        guest.getByText(`Soluzione · round ${roundIndex} di 3`, { exact: false })
+      ).toBeVisible({ timeout: 30_000 });
+    }
+
+    // Entrambi i browser vedono la classifica finale server-side con i due membri.
+    for (const player of [host, guest]) {
+      const leaderboard = player.getByRole("heading", { name: "Classifica finale" });
+      await expect(leaderboard).toBeVisible({ timeout: 30_000 });
+      await expect(player.locator("ol li")).toHaveCount(2);
+      await expect(player.getByText(/\(tu\)/)).toBeVisible();
+    }
 
     await hostContext.close();
     await guestContext.close();
