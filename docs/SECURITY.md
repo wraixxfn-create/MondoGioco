@@ -56,18 +56,24 @@ Gli script di verifica (`scripts/verify-remote.mjs`) usano **solo** la anon key.
 
 Tutte le tabelle esposte hanno `ROW LEVEL SECURITY` abilitata.
 
-| Tabella             | Policy                                   | Regola                                                        |
-| ------------------- | ---------------------------------------- | ------------------------------------------------------------- |
-| `profiles`          | `profiles_public_read` (SELECT)          | lettura a tutti; **nessun** INSERT/UPDATE/DELETE per i client |
-| `game_settings`     | `game_settings_public_read` (SELECT)     | lettura a tutti; nessuna scrittura                            |
-| `game_rooms`        | `game_rooms_member_read` (SELECT)        | solo membri (`is_room_member`)                                |
-| `game_room_members` | `game_room_members_member_read` (SELECT) | solo membri della stessa stanza                               |
-| `game_rounds`       | `game_rounds_member_read` (SELECT)       | membri e solo round ≤ `current_round`                         |
-| `game_answers`      | `game_answers_member_read` (SELECT)      | membri e solo round con `revealed_at` valorizzato             |
-| `game_events`       | `game_events_member_read` (SELECT)       | partecipanti (esclusi gli espulsi)                            |
+| Tabella             | Policy                                            | Regola                                                         |
+| ------------------- | ------------------------------------------------- | -------------------------------------------------------------- |
+| `profiles`          | `profiles_public_read` (SELECT)                   | lettura a tutti; **nessun** INSERT/UPDATE/DELETE per i client  |
+| `game_settings`     | `game_settings_public_read` (SELECT)              | lettura a tutti; nessuna scrittura                             |
+| `game_rooms`        | `game_rooms_member_read` (SELECT)                 | solo membri (`is_room_member`)                                 |
+| `game_room_members` | nessuna policy utente (SELECT revocata dalla 006) | il client usa gli snapshot RPC; evita la fuga di punteggi live |
+| `game_rounds`       | `game_rounds_member_read` (SELECT)                | membri e solo round ≤ `current_round`                          |
+| `game_answers`      | `game_answers_member_read` (SELECT)               | membri e solo round con `revealed_at` valorizzato              |
+| `game_events`       | `game_events_member_read` (SELECT)                | partecipanti (esclusi gli espulsi)                             |
 
 Non esistono policy di `INSERT`/`UPDATE`/`DELETE` sulle tabelle di gioco: i
 privilegi sono revocati e ogni scrittura passa da funzioni `security definer`.
+
+Dalla migrazione `006_release_hardening.sql` la lettura diretta di
+`game_room_members` è **revocata** anche ai membri (e la tabella è fuori dalla
+publication Realtime): esponeva `score` in tempo reale durante il round,
+aggirando la mascheratura dello snapshot. Il client non la legge mai; i cambi
+di membri aggiornano `game_rooms.version`, che è già ascoltata.
 
 ### Perché due helper
 

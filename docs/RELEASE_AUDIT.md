@@ -49,7 +49,7 @@
 - [x] Il client usa solo URL e anon/publishable key Supabase: la anon key è pubblica per definizione e la sicurezza dipende da RLS. `.env.example` non contiene più un campo service-role da copiare per errore. `.env*` è ignorato da Git.
 - [x] Migrazioni 002–005 separano profilo/email/domande/soluzioni in `app_private`; tabelle pubbliche di gioco hanno letture ristrette via RLS e le scritture passano da RPC `SECURITY DEFINER` con permessi revocati.
 - [x] Test DB coprono autorizzazione owner/host/membro, letture private, round futuri, risposta duplicata, input risposta fuori opzioni, rate limit per utente, idempotenza e concorrenza/lock delle RPC.
-- [x] Validazione input con Zod lato client e controlli nel database; coordinate geografiche validate nel gioco singolo; React effettua escaping dei testi renderizzati.
+- [x] Validazione input nel client (funzioni dedicate, senza dipendenza Zod: il vecchio modulo `lib/validators` era usato solo dai test ed è stato rimosso) e controlli nel database; coordinate geografiche validate nel gioco singolo; React effettua escaping dei testi renderizzati.
 - [x] API/error states trattati nell'interfaccia; aggiunto `app/error.tsx` con retry e diagnostica che non registra messaggio o stack potenzialmente sensibili. Aggiunti `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` in Next config; aggiunto controllo header E2E (non eseguito nel sandbox).
 - [ ] Non è configurata una Content Security Policy (CSP) né HSTS esplicito. Definire CSP testata con Next/Supabase e attivare HSTS dopo la decisione sul dominio HTTPS, prima della release pubblica.
 - [ ] Nessun limite di abuso per IP/WAF: il rate limiting per account non impedisce attacchi distribuiti o account anonimi multipli. Usare limiti provider/CDN, alert e CAPTCHA/risk control solo se il traffico lo richiede.
@@ -61,8 +61,8 @@
 
 - [x] Indici presenti per codice/fase stanza, membri/risposte/eventi, profilo/sessioni e idempotenza; query principali sono confinate nel DB. Le funzioni leaderboard aggregano le sessioni e i costi dipenderanno dal volume.
 - [ ] Non è possibile certificare efficienza delle query senza dati e `EXPLAIN (ANALYZE, BUFFERS)` del progetto reale; verificare crescita di `profile_sessions`, `game_events`, `rate_limits` e politiche di retention.
-- [x] Asset texture presenti: Earth day 4096 JPG circa 464 KiB e normal 2048 JPG circa 332 KiB; caricamento on-demand dentro il globo. Il globo è `dynamic(..., { ssr:false })`, con fallback e riduzione DPR/rotazione configurabile.
-- [ ] Il bundle statico prodotto dalla build contiene 22 chunk JS per circa 2.02 MB non compressi (circa 576 kB gzip sommando ogni chunk una volta); gli script referenziati nell'HTML prerenderizzato home sono circa 860 kB non compressi / 254 kB gzip e la pagina Gioca circa 917 kB / 276 kB gzip. Le texture sono circa 796 KiB. Sono misure da filesystem della build, non una cattura di rete: chunk caricati dinamicamente, caching, TTFB e tempo di avvio vanno misurati con Lighthouse/DevTools su un deploy; FPS/heap vanno misurati su smartphone reale.
+- [x] Asset texture presenti in varianti WebP dimensionate: day 2048 circa 156 KiB (1024 circa 46 KiB su mobile/risparmio dati), normal 1024 circa 35 KiB; caricamento on-demand dentro il globo, normal map solo su schermi larghi. Il globo è `dynamic(..., { ssr:false })`, con fallback, DPR ridotto, rotazione configurabile e loop WebGL sospeso fuori schermo/scheda nascosta.
+- [ ] Il bundle statico prodotto dalla build contiene 22 chunk JS; gli script referenziati nell'HTML prerenderizzato home sono circa 938 kB non compressi / 264 kB gzip e la pagina Gioca circa 1009 kB / 289 kB gzip (misura 22 ottobre 2026, dopo la rimozione di 4 dipendenze inutilizzate e l'aggiunta del client Supabase). Le texture sono ~237 KiB. `browserslist` non è stato aggiunto: una prova con target moderni non ha ridotto il bundle (`next`/`react-dom` sono precompilati), quindi non è stato introdotto un cambio senza beneficio misurato. Sono misure da filesystem della build, non una cattura di rete: chunk caricati dinamicamente, caching, TTFB e tempo di avvio vanno misurati con Lighthouse/DevTools su un deploy; FPS/heap vanno misurati su smartphone reale.
 - [x] Test Playwright già includono viewport mobile 390×844, overflow orizzontale e controlli touch, ma l'esecuzione in questo ambiente è bloccata dall'installazione browser.
 - [x] Componenti React applicativi sotto `components/` sono importati dalle pagine/layout. I file SVG standard (`file.svg`, `next.svg`, `vercel.svg`, `window.svg`, `globe.svg`) in `public/` risultano asset generici non referenziati dal codice; impatto trascurabile, lasciati invariati.
 - [x] Mancavano un workflow CI e un config minimo Supabase CLI: aggiunti `.github/workflows/ci.yml` e `supabase/config.toml`.
@@ -75,3 +75,55 @@
 - [ ] Playwright Chromium + mobile passano; test cloud signup/login/profilo, partita multiplayer completa e reconnect completati su staging.
 - [ ] Build Vercel production, HTTPS/dominio, secret/env, alert/log retention e rollback verificati.
 - [ ] Smoke test manuale da due dispositivi e approvazione del proprietario per ogni operazione sul database di produzione.
+
+---
+
+## Ciclo di hardening 2026-10-22 (migrazione 006 + correzioni client)
+
+Questa sezione registra il secondo passaggio di audit. Le prove sono state eseguite su questo checkout; **nessun test E2E è stato eseguito in locale** (download Chromium bloccato dalla rete del sandbox) e nessun progetto Supabase reale è stato contattato.
+
+### Difetti corretti (per gravità)
+
+**Critici**
+
+1. **Fuga dei punteggi live in multiplayer.** `game_room_members` era leggibile via PostgREST dai membri e pubblicata su Realtime: durante un round si potevano leggere i `score` già assegnati, aggirando la mascheratura dello snapshot. La 006 revoca la SELECT, rimuove la tabella dalla publication e il client smette di sottoscriverla (i cambi di membri arrivano da `game_rooms.version`).
+2. **Blocco della stanza all'avvio partita.** Se la banca domande non copriva i round richiesti, `start_game` inseriva round parziali e la stanza restava in `round_active` senza poter ripartire. Ora la capienza è verificata prima delle scritture e l'errore è `MG500:round_generation_failed` (ritentabile).
+3. **Partite perfette rifiutate.** Il limite di plausibilità era 5.000 punti/round, ma il motore assegna fino a 6.250 con combo ×1,25: una partita legittima non veniva registrata. Allineati i limiti (score ≤ round×6.250, round ≤ 200) e gli XP vengono ricalcolati dal server.
+
+**Importanti**
+
+4. **Risposta rifiutata a un giocatore attivo.** Un heartbeat marcava `disconnected` un client con timer in background; `submit_answer` ora ripristina la presenza su richiesta autenticata durante il round.
+5. **Errore RLS mascherato da errore di rete.** `mapTransportError` restituiva `NETWORK` anche per violazioni RLS/JWT: la UI riprovava all'infinito senza mostrare la causa. Ora distingue `MG403:permission_denied` e `SESSION`.
+6. **Crash/hang del profilo con dati corrotti.** `calculateLevel(NaN)` non terminava (loop infinito, pagina congelata); contatori NaN/stringhe in localStorage avvelenavano XP e classifiche. Aggiunte guardie (`Number.isFinite`, tetto livello 200) e normalizzazione di profilo e sessioni.
+7. **Progressi cloud che sparivano al login.** Se il profilo cloud aveva contatori inferiori al locale (es. account usato su un altro dispositivo), il merge poteva mostrare valori del dispositivo sbagliato; inoltre il logout non ripristinava lo stato. Merge per massimo documentato + gestione sessione assente.
+8. **Missioni impossibili e ricompense finte.** Le missioni misuravano campi inesistenti (`continents`, serie mai calcolata) e mostravano "+XP" senza che nulla venisse accreditato. Ora misurano dati reali (`bullseyes`, `bestStreak`, miglior run survival) e sono dichiarate come obiettivi di pratica senza XP.
+9. **Heartbeat che riscriveva la stanza a ogni battito** (8 giocatori ≈ 2,7 scritture/s + eventi Realtime a cascata): scritture solo se la presenza è stantia.
+10. **Doppia registrazione delle partite** in caso di errore di rete dopo una chiamata andata a buon fine: il retry con firma vecchia avviene solo sugli errori "funzione mancante".
+
+**Minori**
+
+11. Errori di salvataggio cloud silenziosi nel riepilogo → ora mostrati con `syncError`; uscita dalla stanza con errore ignorato → ora segnalata; timer del round che usava `Date.now()` invece dell'orologio del server → corretto.
+12. `Modal` senza focus trap/Escape/ripristino focus; header con polling ogni 2 s (ora event-driven); globo che continuava a renderizzare fuori schermo; texture 4096 JPG (462 KB) scaricata anche su mobile.
+13. Codice/dipendenze inutilizzate rimosse: `framer-motion`, `react-icons`, `@supabase/ssr`, `zod`, `lib/supabase/server.ts`, `lib/validators`, `lib/utils/quiz-generator.ts` e i tipi del vecchio quiz. Nessuna funzionalità è stata rimossa: erano rami non raggiungibili.
+
+### Verifiche eseguite (22 ottobre 2026)
+
+| Comando                | Esito                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm ci`               | 521 pacchetti, nessun errore                                                                       |
+| `npx tsc --noEmit`     | 0 errori                                                                                           |
+| `npx eslint .`         | 0 errori, 0 warning                                                                                |
+| `npx vitest run`       | **13 file, 191 test, tutti passati** (unit + DB PGlite, ~111 s)                                    |
+| `npm run format:check` | tutti i file conformi                                                                              |
+| `npm run build`        | build di produzione OK, 11 route statiche                                                          |
+| `npm run test:e2e`     | **non eseguito**: Chromium non scaricabile in questo ambiente (ECONNRESET); resta delegato alla CI |
+
+Test DB aggiunti in questo ciclo (`tests/db/audit-regressions.test.ts`, 11 casi): cap punteggio/XP, rifiuto bullseye/serie incoerenti, sessione lunga, avvio con banca insufficiente, nessuna lettura diretta dei punteggi, risposta di un giocatore marcato disconnesso, heartbeat senza riscritture, partita completa a 2 giocatori con registrazione una sola volta, isolamento tra stanze simultanee.
+
+### Rischi residui (invariati)
+
+- E2E browser e partita hosted su staging non eseguiti in questo ambiente; la CI resta l'unica prova browser.
+- Nessuna CSP/HSTS, nessun limite per IP/WAF, nessun sink di monitoring centralizzato.
+- Rate limit per account: più account anonimi possono ancora generare stanze; servono limiti provider/CDN se il traffico lo richiede.
+- Punteggi offline restano plausibilità, non prova antifrode.
+- Migrazione 006 non applicata ad alcun ambiente remoto: va provata su staging prima della produzione.

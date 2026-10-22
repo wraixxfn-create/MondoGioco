@@ -52,10 +52,6 @@ const fetchWithTimeout: typeof fetch = async (input, init) => {
   }
 };
 
-export function resetOfflineCircuitBreaker(): void {
-  offlineUntil = 0;
-}
-
 /**
  * Restituisce il client Supabase condiviso lato browser.
  *

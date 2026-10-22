@@ -6,7 +6,7 @@ Questa procedura prepara una prima pubblicazione senza applicare modifiche a ser
 
 - Node.js 22 (o almeno la versione LTS supportata dal team) e npm.
 - Per solo gioco singolo, nessun account o servizio esterno.
-- Per account cloud/multiplayer, progetto Supabase con migrations 001–005, Auth configurato e env del progetto.
+- Per account cloud/multiplayer, progetto Supabase con migrations 001–006, Auth configurato e env del progetto.
 
 ```bash
 npm ci
@@ -37,7 +37,7 @@ Se l'installazione del browser non è disponibile sulla rete locale, non dichiar
 
 1. Crea un progetto **staging** in una regione UE e conserva le credenziali DB fuori dal repository.
 2. Configura URL e anon key in `.env.local` e riavvia Next.
-3. Applica in ordine le migrazioni `supabase/migrations/001_...sql` → `005_...sql`. Sono migrazioni versionate; `supabase/config.toml` è il config minimo CLI aggiunto al progetto.
+3. Applica in ordine le migrazioni `supabase/migrations/001_...sql` → `006_...sql` (`006` è additiva: hardening di punteggi/XP e permessi, con note di rollback in testa al file). Sono migrazioni versionate; `supabase/config.toml` è il config minimo CLI aggiunto al progetto.
 4. Auth → Providers: abilita Email e Anonymous (necessario agli ospiti multiplayer). Scegli deliberatamente se richiedere conferma email; verifica l'invio SMTP per non usare il servizio email di default in produzione.
 5. Auth → URL Configuration: Site URL staging e Redirect URLs esatti per staging, `http://localhost:3000/auth` e `http://localhost:3000/auth/reset` in sviluppo. Aggiungi dominio production e reset URL dopo averlo deciso; evita redirect wildcard permissivi in produzione.
 6. Database → Replication: verifica `game_rooms`, `game_room_members`, `game_rounds` e `game_events` in `supabase_realtime`. Se Realtime non è abilitato, il client usa il polling fallback, ma bisogna comunque verificare il comportamento in condizioni reali.
@@ -101,7 +101,7 @@ Non esiste una serie automatica di migrazioni down. Preferire correzioni additiv
 ## 6. Checklist di prima partita multiplayer pubblica
 
 - [ ] Production URL e anon key corrette nelle env Vercel; nessun service-role nel browser/build.
-- [ ] Le migrazioni 001–005 sono applicate e stato/backup confermati.
+- [ ] Le migrazioni 001–006 sono applicate e stato/backup confermati.
 - [ ] RLS attiva, grants controllati; le policy private sono state validate su hosted DB.
 - [ ] Anonymous Auth e Email Auth secondo policy, redirect HTTPS esatti, email di conferma/recovery ricevuta davvero.
 - [ ] Realtime pubblica le tabelle previste; polling fallback osservato.

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { loadLocalPlayer } from "@/lib/services/player-store";
+import { loadLocalPlayer, PLAYER_CHANGED_EVENT } from "@/lib/services/player-store";
 import { calculateLevel } from "@/lib/utils";
 import { getAvatar } from "@/lib/game/progression";
 
@@ -14,6 +14,7 @@ export function Header() {
   const [level, setLevel] = useState(1);
   const [progress, setProgress] = useState(0);
   const [avatarEmoji, setAvatarEmoji] = useState("🌍");
+  const [hasAccount, setHasAccount] = useState(false);
 
   useEffect(() => {
     try {
@@ -28,16 +29,21 @@ export function Header() {
         setLevel(li.level);
         setProgress(li.progress);
         setAvatarEmoji(getAvatar(p.avatarId).emoji);
-      } catch {}
+        setHasAccount(Boolean(p.authUserId));
+      } catch {
+        // localStorage non disponibile (Safari privato): si resta ai default.
+      }
     };
     refresh();
+    // Aggiornamento event-driven: niente polling ogni 2 secondi su ogni
+    // pagina. "storage" copre le altre schede, l'evento custom questa.
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
-    const id = setInterval(refresh, 2000);
+    window.addEventListener(PLAYER_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("focus", refresh);
-      clearInterval(id);
+      window.removeEventListener(PLAYER_CHANGED_EVENT, refresh);
     };
   }, [pathname]);
 
@@ -114,10 +120,10 @@ export function Header() {
             </div>
 
             <Link
-              href="/auth"
+              href={hasAccount ? "/profile" : "/auth"}
               className="hidden md:inline-flex items-center justify-center px-4 py-2 rounded-full bg-white text-[#0a1433] text-sm font-bold hover:bg-white/90 transition-colors"
             >
-              Accedi
+              {hasAccount ? "Profilo" : "Accedi"}
             </Link>
 
             {/* Mobile menu button */}
@@ -176,9 +182,13 @@ export function Header() {
                 </Link>
               ))}
               <div className="pt-3 flex gap-3">
-                <Link href="/auth" onClick={() => setMobileMenuOpen(false)} className="flex-1">
+                <Link
+                  href={hasAccount ? "/profile" : "/auth"}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex-1"
+                >
                   <span className="flex items-center justify-center w-full px-4 py-3 rounded-xl bg-white text-[#0a1433] font-bold">
-                    Accedi — crea account
+                    {hasAccount ? "Il mio profilo" : "Accedi — crea account"}
                   </span>
                 </Link>
               </div>
