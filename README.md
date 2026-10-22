@@ -41,10 +41,13 @@ npm run verify:remote   # verifica reale: 2 utenti, stanza, round, chiusura
 
 ## 🎮 Cosa puoi fare
 
-- **Gioca (`/play`)** — Oltre 130 luoghi reali sul globo 3D con indizi progressivi,
+- **Gioca (`/play`)** — Oltre 3.600 luoghi reali sul globo 3D con indizi progressivi,
   distanza Haversine e sette modalità (_Sfida a round_, _Sprint_, _Precisione_,
   _Sopravvivenza_, _Sfida quotidiana_, _Contro il tempo_, _Allenamento_),
   combo per le serie di risposte precise e inserimento manuale lat/lng.
+- **Contenuti (`/contenuti`)** — Panoramica del dataset geografico: 3.686 luoghi
+  (338 curati a mano + 3.348 generati e verificati), mappe tematiche, pacchetti
+  di sfida, controlli di qualità, fonti e attribuzioni.
 - **Allenamento (`/training`)** — Stati, capitali, bandiere, popolazione e
   coordinate senza limiti di tempo.
 - **Multiplayer (`/multiplayer`)** — Crea una stanza, condividi codice o link,
@@ -77,6 +80,7 @@ npm run verify:remote  # verifica sul progetto Supabase reale (richiede .env.loc
 npm run lint           # ESLint
 npm run type-check     # TypeScript
 npm run db:seed        # rigenera la banca domande da data/countries.ts
+npm run content:build  # ricostruisce i pacchetti geografici, il manifest e l'audit
 ```
 
 ## 🧱 Architettura in breve
@@ -89,6 +93,8 @@ npm run db:seed        # rigenera la banca domande da data/countries.ts
 | Autorità | Funzioni `security definer` | Validano fase, tempi, appartenenza; calcolano punteggi      |
 | Realtime | Supabase Realtime           | Notifica i cambiamenti (il polling RPC resta come fallback) |
 
+Contenuti geografici (dataset, selezione dei round, qualità, fonti):
+[`docs/CONTENT.md`](docs/CONTENT.md).
 Dettagli su stati, timer, latenza ed errori: [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md).
 Utente, XP/livelli/obiettivi, streak, classifiche, pareggi e migrazione 005:
 [`docs/PROGRESSION.md`](docs/PROGRESSION.md).
@@ -98,6 +104,11 @@ Audit e gate di release: [`docs/RELEASE_AUDIT.md`](docs/RELEASE_AUDIT.md).
 Build, migrazioni e deploy Vercel: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## ⚠️ Limiti noti (dichiarati, non nascosti)
+
+- Il dataset geografico conta 3.686 luoghi: i 338 curati a mano hanno indizi
+  originali, i 3.348 generati hanno indizi sintetizzati dai metadati (corretti
+  ma meno ricchi). La popolazione è un proxy di notorietà, non un dato di quiz.
+  Fonti, controlli e limiti: [`docs/CONTENT.md`](docs/CONTENT.md).
 
 - I punteggi delle partite **in singolo** sono calcolati sul dispositivo (gioco
   offline-first). Il server ne valida solo la plausibilità: non sono una fonte

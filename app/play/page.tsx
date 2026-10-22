@@ -7,6 +7,15 @@ import { Card, Pill } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Timer } from "@/components/ui/Timer";
 import { LOCATIONS, categoryLabel } from "@/data/locations";
+import { buildIndex, selectLocations, countAvailable } from "@/lib/content/catalog";
+import type { ContentIndex } from "@/lib/content/catalog";
+import { BALANCED_MIX, DEFAULT_PLAN, generateRounds } from "@/lib/content/selection";
+import { loadPacks, packsForCriteria } from "@/lib/content/registry";
+import { getSeenHistory } from "@/lib/content/recency";
+import { getCollection, isChallengePack } from "@/lib/content/collections";
+import type { ChallengePack } from "@/lib/content/collections";
+import { CONTENT_VERSION, GENERATED_LOCATION_COUNT } from "@/lib/content/version";
+import type { DifficultyLevel, HydratedLocation } from "@/data/content/schema";
 import {
   createGame,
   submitGuess,
@@ -32,7 +41,7 @@ import { recordGameResult } from "@/lib/services/player-store";
 import { v4FallbackId } from "@/lib/utils/id";
 import type { AchievementDef } from "@/lib/game/progression";
 import Link from "next/link";
-import type { GeoCoordinates, GeoGameMode } from "@/types";
+import type { Continent, GeoCoordinates, GeoGameMode } from "@/types";
 
 const GlobeContainer = dynamic(
   () => import("@/components/globe/Globe").then((mod) => mod.GlobeContainer),
@@ -124,6 +133,30 @@ const MODE_CARDS: {
   },
 ];
 
+/** Aree geografiche selezionabili (i continenti del dataset). */
+const AREA_OPTIONS: { value: "world" | Continent; label: string; emoji: string }[] = [
+  { value: "world", label: "Mondo", emoji: "🌍" },
+  { value: "europe", label: "Europa", emoji: "🇪🇺" },
+  { value: "asia", label: "Asia", emoji: "🌏" },
+  { value: "africa", label: "Africa", emoji: "🌍" },
+  { value: "north_america", label: "America N.", emoji: "🌎" },
+  { value: "south_america", label: "America S.", emoji: "🌎" },
+  { value: "oceania", label: "Oceania", emoji: "🏝️" },
+];
+
+/** Miscela di difficoltà selezionabile dal giocatore. */
+const DIFFICULTY_OPTIONS: {
+  value: "balanced" | "ramp" | DifficultyLevel;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "balanced", label: "Bilanciata", hint: "25% facili · 40% medie · 35% difficili" },
+  { value: "ramp", label: "A rampa", hint: "si parte facili e si sale" },
+  { value: 1, label: "Facile", hint: "solo luoghi molto noti" },
+  { value: 2, label: "Media", hint: "solo difficoltà media" },
+  { value: 3, label: "Difficile", hint: "solo luoghi ostici" },
+];
+
 export default function PlayPage() {
   const [screen, setScreen] = useState<Screen>("menu");
   const [selectedMode, setSelectedMode] = useState<GeoGameMode>("challenge");
@@ -141,6 +174,14 @@ export default function PlayPage() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [showHintCost, setShowHintCost] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
+  // ---- Contenuti: area, difficoltà e indice dei luoghi disponibili ----
+  const [contentIndex, setContentIndex] = useState<ContentIndex | null>(null);
+  const [area, setArea] = useState<"world" | Continent>("world");
+  const [difficulty, setDifficulty] = useState<"balanced" | "ramp" | DifficultyLevel>("balanced");
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+  /** Sfida precaricata da `/contenuti` (es. `/play?challenge=challenge-italy`). */
+  const [challenge, setChallenge] = useState<ChallengePack | null>(null);
   const savedGameRef = useRef<GeoGameState | null>(null);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -148,6 +189,116 @@ export default function PlayPage() {
   pendingRef.current = pendingGuess;
   const gameRef = useRef<GeoGameState | null>(null);
   gameRef.current = game;
+
+  // Sfida tematica arrivata da `/contenuti?challenge=…`: preseleziona
+  // modalità, round e criteri senza toccare il motore di gioco.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URLSearchParams(window.location.search).get("challenge");
+    if (!id) return;
+    const collection = getCollection(id);
+    if (!collection || !isChallengePack(collection)) return;
+    setChallenge(collection);
+    setSelectedMode(collection.recommendedMode);
+    if (collection.recommendedMode === "challenge") setChallengeRounds(collection.rounds);
+  }, []);
+
+  // ------------------------------------------------------------
+  // Contenuti: solo i pacchetti necessari all'area scelta.
+  // I pacchetti curati stanno nel bundle iniziale; le città per
+  // continente vengono scaricate on demand (nessun download inutile).
+  // ------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+    setContentLoading(true);
+    setContentError(null);
+    const criteria = challenge?.criteria ?? (area === "world" ? {} : { continents: [area] });
+    loadPacks(packsForCriteria(criteria))
+      .then((packs) => {
+        if (cancelled) return;
+        setContentIndex(buildIndex(packs.flatMap((pack) => pack.locations)));
+      })
+      .catch(() => {
+        if (!cancelled) setContentError("Impossibile caricare i contenuti geografici.");
+      })
+      .finally(() => {
+        if (!cancelled) setContentLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [area, challenge]);
+
+  /** Quanti luoghi restano giocabili con i filtri correnti. */
+  const availableCount = contentIndex
+    ? countAvailable(
+        contentIndex,
+        challenge?.criteria ?? {
+          continents: area === "world" ? undefined : [area],
+          difficulties: typeof difficulty === "number" ? [difficulty] : undefined,
+        }
+      )
+    : LOCATIONS.length;
+
+  /**
+   * Sceglie gli obiettivi della partita. La SELEZIONE sta qui, fuori dal
+   * motore di gioco: vincoli geografici, quota di difficoltà e storico
+   * delle ripetizioni sono responsabilità del sistema di contenuti.
+   */
+  const buildTargets = useCallback(
+    async (
+      count: number,
+      rng: () => number,
+      options: { daily?: boolean } = {}
+    ): Promise<HydratedLocation[]> => {
+      let index = contentIndex;
+      const criteria = challenge?.criteria ?? (area === "world" ? {} : { continents: [area] });
+      if (!index) {
+        const packs = await loadPacks(packsForCriteria(criteria));
+        index = buildIndex(packs.flatMap((pack) => pack.locations));
+        setContentIndex(index);
+      }
+      const pool = selectLocations(index, {
+        ...criteria,
+        difficulties:
+          challenge?.criteria?.difficulties ??
+          (typeof difficulty === "number" ? [difficulty] : undefined),
+      });
+      if (pool.length === 0) return [];
+
+      const plan = challenge
+        ? { ...DEFAULT_PLAN, ...challenge.plan }
+        : typeof difficulty === "number"
+          ? {
+              ...DEFAULT_PLAN,
+              difficultyMix: {
+                1: difficulty === 1 ? 1 : 0,
+                2: difficulty === 2 ? 1 : 0,
+                3: difficulty === 3 ? 1 : 0,
+              },
+            }
+          : difficulty === "ramp"
+            ? { ...DEFAULT_PLAN, ramp: true }
+            : { ...DEFAULT_PLAN, difficultyMix: BALANCED_MIX };
+
+      // La sfida giornaliera deve essere identica per tutti: si estrae
+      // senza tenere conto dello storico locale, altrimenti ogni
+      // giocatore vedrebbe luoghi diversi.
+      const history = options.daily ? null : getSeenHistory();
+      let targets = generateRounds(pool, count, plan, {
+        rng,
+        sessionIndex: history?.sessionIndex,
+        recency: history?.entries(),
+      });
+      // Se tutto il parco luoghi è stato visto di recente, si riparte
+      // senza lo storico anziché proporre una partita più corta.
+      if (targets.length < count) {
+        targets = generateRounds(pool, count, plan, { rng });
+      }
+      return targets;
+    },
+    [area, challenge, contentIndex, difficulty]
+  );
 
   const buildConfig = useCallback((): GeoGameConfig => {
     switch (selectedMode) {
@@ -205,11 +356,15 @@ export default function PlayPage() {
     }
   }, [selectedMode, challengeRounds, timedSeconds]);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback(async () => {
     try {
       const cfg = buildConfig();
       const rng = cfg.mode === "daily" ? createSeededRng(dailySeed(new Date())) : Math.random;
-      const g = createGame(LOCATIONS, cfg, rng as unknown as () => number, Date.now());
+      const wanted = Number.isFinite(cfg.totalRounds) ? (cfg.totalRounds as number) : 50;
+      const targets = await buildTargets(wanted, rng, { daily: cfg.mode === "daily" });
+      const g = createGame(LOCATIONS, cfg, rng as unknown as () => number, Date.now(), {
+        targets,
+      });
       setGame(g);
       setNow(Date.now());
       setPendingGuess(null);
@@ -230,7 +385,7 @@ export default function PlayPage() {
       );
       setScreen("error");
     }
-  }, [buildConfig]);
+  }, [buildConfig, buildTargets]);
 
   const doSubmit = useCallback((guess: GeoCoordinates | null, at: number) => {
     setGame((prev) => {
@@ -298,6 +453,15 @@ export default function PlayPage() {
   useEffect(() => {
     if (screen !== "summary" || !game || savedGameRef.current === game) return;
     savedGameRef.current = game;
+    // I luoghi appena proposti entrano nello storico: la prossima partita
+    // ne privilegerà altri (ripetizioni ridotte fra sessioni consecutive).
+    try {
+      const history = getSeenHistory();
+      history.markSeen(game.targets.map((target) => target.id));
+      history.startSession();
+    } catch {
+      // Senza storage disponibile si gioca comunque, solo con più ripetizioni.
+    }
     const summary = summarize(game);
     if (summary.roundsPlayed === 0) return;
 
@@ -646,7 +810,9 @@ export default function PlayPage() {
                   premiano la precisione, non la fortuna.
                 </p>
                 <div className="flex flex-wrap gap-2 pt-2">
-                  <Pill tone="success">130+ luoghi</Pill>
+                  <Pill tone="success">
+                    {formatNumber(LOCATIONS.length + GENERATED_LOCATION_COUNT)}+ luoghi
+                  </Pill>
                   <Pill tone="info">Combo ×1.25</Pill>
                   <Pill tone="accent">Sfida giornaliera</Pill>
                 </div>
@@ -669,7 +835,8 @@ export default function PlayPage() {
               Scegli la modalità
             </h2>
             <span className="text-xs text-white/40">
-              {LOCATIONS.length} luoghi • tutti i continenti
+              {formatNumber(availableCount)} luoghi •{" "}
+              {AREA_OPTIONS.find((o) => o.value === area)?.label}
             </span>
           </div>
           <div
@@ -723,6 +890,78 @@ export default function PlayPage() {
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        {/* Filtri contenuti: area geografica e livello di difficoltà */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold tracking-widest uppercase text-white/60">
+              {challenge ? "Sfida selezionata" : "Cosa vuoi giocare"}
+            </h2>
+            <span className="text-xs text-white/40">
+              {contentLoading
+                ? "caricamento contenuti…"
+                : contentError
+                  ? "contenuti non disponibili"
+                  : `${formatNumber(availableCount)} luoghi disponibili`}
+            </span>
+          </div>
+
+          {challenge ? (
+            <Card className="!p-4 flex flex-wrap items-center gap-3">
+              <div className="text-2xl">{challenge.icon}</div>
+              <div className="min-w-0">
+                <div className="text-white font-semibold">{challenge.title}</div>
+                <div className="text-sm text-white/60">
+                  {challenge.description} · {challenge.rounds} round
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="ml-auto"
+                onClick={() => setChallenge(null)}
+              >
+                Torna ai filtri
+              </Button>
+            </Card>
+          ) : (
+            <>
+              <ChipRow
+                label="Area geografica"
+                options={AREA_OPTIONS}
+                value={area}
+                onChange={(value) => setArea(value)}
+                render={(option) => `${option.emoji ?? ""} ${option.label}`}
+              />
+              <ChipRow
+                label="Difficoltà"
+                options={DIFFICULTY_OPTIONS}
+                value={difficulty}
+                onChange={(value) => setDifficulty(value)}
+                render={(option) => option.label}
+                hint={DIFFICULTY_OPTIONS.find((option) => option.value === difficulty)?.hint}
+              />
+            </>
+          )}
+
+          {contentError && (
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              {contentError} Si giocherà comunque con i luoghi curati di base ({LOCATIONS.length}{" "}
+              luoghi).
+            </div>
+          )}
+
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/50">
+            <span>
+              Contenuti v{CONTENT_VERSION} · {formatNumber(GENERATED_LOCATION_COUNT)} luoghi
+              generati
+            </span>
+            <span>Nessuna ripetizione in partita · ripetizioni ridotte fra partite vicine</span>
+            <Link href="/contenuti" className="underline hover:text-white">
+              Sfide tematiche e fonti →
+            </Link>
           </div>
         </div>
 
@@ -815,8 +1054,8 @@ export default function PlayPage() {
           Inizia la partita — {MODE_CARDS.find((c) => c.mode === selectedMode)?.title} 🎮
         </Button>
         <p className="text-center text-xs text-white/40">
-          {LOCATIONS.length} luoghi reali • capitali, città, monumenti, natura e isole • globe NASA
-          Blue Marble
+          {formatNumber(availableCount)} luoghi reali • capitali, città, monumenti, fiumi e monti •
+          globo NASA Blue Marble
         </p>
       </div>
     );
@@ -1127,6 +1366,44 @@ function OptionRow({
             aria-pressed={value === n}
           >
             {render(n)}
+          </Button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ChipRow<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+  render,
+  hint,
+}: {
+  label: string;
+  options: { value: T; label: string; emoji?: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  render: (option: { value: T; label: string; emoji?: string }) => string;
+  hint?: string;
+}) {
+  return (
+    <Card className="!p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-white">{label}</h3>
+        {hint && <span className="text-xs text-white/40">{hint}</span>}
+      </div>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={label}>
+        {options.map((option) => (
+          <Button
+            key={String(option.value)}
+            variant={value === option.value ? "primary" : "secondary"}
+            size="sm"
+            onClick={() => onChange(option.value)}
+            aria-pressed={value === option.value}
+          >
+            {render(option)}
           </Button>
         ))}
       </div>

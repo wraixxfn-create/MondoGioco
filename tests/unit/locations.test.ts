@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { LOCATIONS, getLocationById, getLocationsByContinent } from "@/data/locations";
 import { isValidCoordinates, haversineDistanceKm } from "@/lib/game/geo";
+import { buildIndex, selectLocations } from "@/lib/content/catalog";
+import { generateRounds } from "@/lib/content/selection";
+import { createSeededRng } from "@/lib/game/engine";
+import { loadCurated } from "./content-testkit";
 
 describe("dataset delle località (validazione automatica)", () => {
   it("contiene almeno 100 luoghi", () => {
@@ -54,13 +58,35 @@ describe("dataset delle località (validazione automatica)", () => {
     }
   });
 
-  it("nessuna coppia di obiettivi è a meno di 40 km (round non ambigui)", () => {
+  it("nessuna coppia di luoghi condivide le coordinate (nessun doppione)", () => {
+    // La separazione di 40 km non è una proprietà del dataset: è un vincolo
+    // applicato al momento della selezione dei round (generateRounds). Un fiume
+    // che attraversa la sua città, o un monumento nel centro della propria
+    // città, restano legittimamente vicini: la coppia più stretta del
+    // dataset curato è Istanbul ↔ Santa Sofia, circa 160 m.
     for (let i = 0; i < LOCATIONS.length; i++) {
       for (let j = i + 1; j < LOCATIONS.length; j++) {
         const d = haversineDistanceKm(LOCATIONS[i].coordinates, LOCATIONS[j].coordinates);
-        expect(d, `${LOCATIONS[i].id} ↔ ${LOCATIONS[j].id}: ${d.toFixed(1)} km`).toBeGreaterThan(
-          40
+        expect(d, `${LOCATIONS[i].id} ↔ ${LOCATIONS[j].id}: ${d.toFixed(3)} km`).toBeGreaterThan(
+          0.1
         );
+      }
+    }
+  });
+
+  it("i round generati rispettano la separazione minima di 40 km", async () => {
+    const index = buildIndex(await loadCurated());
+    const rounds = generateRounds(
+      selectLocations(index, {}),
+      10,
+      { minSeparationKm: 40 },
+      { rng: createSeededRng(2024) }
+    );
+    expect(rounds.length).toBe(10);
+    for (let i = 0; i < rounds.length; i++) {
+      for (let j = i + 1; j < rounds.length; j++) {
+        const d = haversineDistanceKm(rounds[i].coordinates, rounds[j].coordinates);
+        expect(d, `${rounds[i].id} ↔ ${rounds[j].id}`).toBeGreaterThanOrEqual(40);
       }
     }
   });

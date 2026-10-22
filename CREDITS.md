@@ -16,25 +16,52 @@ Attribuzione consigliata dalla NASA, riportata anche in-game:
 
 ## Dati geografici (luoghi del gioco)
 
-Il dataset `data/locations.ts` (oltre 130 luoghi) contiene:
+Il sistema di contenuti (`data/content/` + `lib/content/`) contiene
+**3.686 luoghi**: **338 curati a mano** (pacchetti in
+`data/content/packs/`) e **3.348 generati** (pacchetti in
+`data/content/generated/`, ricostruiti da `npm run content:build`).
 
-- **Nomi e coordinate**: dati geografici fattuali (capitali, città,
-  monumenti, luoghi naturali) allineati ai centroidi/punti di
-  riferimento pubblicati da banche dati con licenza compatibile:
-  - [Natural Earth](https://www.naturalearthdata.com/) — **pubblico dominio**;
-  - [GeoNames](https://www.geonames.org/) — **CC BY 4.0**
-    (attribuzione: "Geographical data © GeoNames contributors",
-    <https://creativecommons.org/licenses/by/4.0/>).
-    Le coordinate sono arrotondate a 4 decimali (~11 m).
-- **Indizi (`hints`)**: testi originali scritti appositamente per
+Ogni record dichiara un `sourceId` che punta al registro
+`data/content/sources.ts`: nessun dato entra nel gioco senza una fonte
+documentata. Nessuna coordinata, nessun luogo e nessuna informazione
+storica è inventata.
+
+### Città e capitali generate (3.348 luoghi)
+
+| Fonte                                                                                                                                        | Cosa è usato                                                                               | Licenza                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| [GeoNames](https://www.geonames.org/) — export `cities1000` (insediamenti con popolazione ≥ 1.000), via pacchetto npm `all-the-cities` (MIT) | id, nome, coordinate (arrotondate a 4 decimali, ~11 m), popolazione, codice amministrativo | **CC BY 4.0** — attribuzione: "Dati geografici © GeoNames contributors", <https://creativecommons.org/licenses/by/4.0/> |
+
+### Controlli geometrici e denominazioni
+
+| Fonte                                                                                           | Uso                                                                                     | Licenza              |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------- |
+| [Natural Earth](https://www.naturalearthdata.com/) 1:10m, via pacchetto npm `world-atlas` (ISC) | confini di stato e linee di costa per il controllo "il punto cade nel paese dichiarato" | **Pubblico dominio** |
+| `countries-list` (MIT) e `i18n-iso-countries` (MIT)                                             | nomi dei paesi in italiano/inglese e codici ISO 3166-1                                  | MIT                  |
+
+### Pacchetti curati (338 luoghi)
+
+- **Nomi, coordinate e dati**: allineati alle stesse banche dati sopra
+  (Natural Earth, GeoNames) per le voci che vi compaiono; per monumenti,
+  fiumi e siti storici si usano i punti di riferimento pubblicati dalle
+  stesse fonti o da materiale di pubblico dominio.
+- **Indizi (`hints`) e temi**: testi **originali** scritti per
   MondoGioco, non copiati da guide, enciclopedie o siti di terzi.
-- La struttura (id, categorie, difficoltà) è originale del progetto.
+- **Struttura** (id, categorie, difficoltà, temi, revisione): originale.
 
-Il dataset è validato automaticamente dai test
-(`tests/unit/locations.test.ts`): id univoci, coordinate nei range
-geografici, almeno 2 indizi per luogo, copertura di tutti i
-continenti abitati, nessuna coppia di obiettivi a meno di 40 km
-(per evitare round ambigui).
+I 338 record curati sono verificati uno per uno con il controllo
+punto-entro-confini: 298 dentro i confini, 39 entro la tolleranza
+(coste e isole), 1 senza geometria disponibile, **0 da correggere**.
+
+### Validazione
+
+I controlli automatici stanno in `lib/content/quality.ts` (condiviso da
+test, script di generazione e pagina `/contenuti`) e nella suite
+`tests/unit/content-*.test.ts`: id univoci, coordinate valide, metadati
+presenti, fonte dichiarata, assenza di duplicati e di coppie di luoghi
+ambigua, correttezza della selezione dei round.
+
+Dettagli, numeri aggiornati e limiti noti: **`docs/CONTENT.md`**.
 
 ## Dataset paesi (quiz/allenamento)
 
