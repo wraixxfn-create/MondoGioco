@@ -572,85 +572,86 @@ export default function MultiplayerPage() {
         )}
 
         {isLobby && (
-          <Card className="space-y-4">
+          <Card className="space-y-4 border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
             <CardHeader
-              title="Lobby"
-              description="Condividi il codice o il link. La partita parte quando tutti sono pronti."
+              title="Lobby — in attesa dei giocatori"
+              description="Condividi codice o link. Quando tutti sono pronti, l'host avvia la sfida."
               icon={<span className="text-2xl">🚪</span>}
             />
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" size="sm" onClick={() => void handleCopyInvite()}>
-                {copied ? "Link copiato!" : "🔗 Copia link invito"}
+                {copied ? "✅ Link copiato!" : "🔗 Copia link invito"}
               </Button>
               <Button
-                variant="ghost"
+                variant={me?.is_ready ? "secondary" : "primary"}
                 size="sm"
                 onClick={() => void handleReady(!(me?.is_ready ?? false))}
                 disabled={busy}
               >
-                {me?.is_ready ? "Non sono più pronto" : "Sono pronto"}
+                {me?.is_ready ? "✕ Non pronto" : "✓ Sono pronto — via!"}
               </Button>
               <Link
                 href="/profile"
-                className="inline-flex items-center text-xs text-slate-400 underline hover:text-slate-200 px-2"
+                className="inline-flex items-center text-xs text-white/60 underline hover:text-white px-2"
               >
                 Cambia nickname
               </Link>
             </div>
+            <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white/60">
+              💡 Tip: la lobby mostra in tempo reale chi è connesso e pronto — l’avvio è solo dell’host per tenere il ritmo serrato.
+            </div>
           </Card>
         )}
 
-        {/* Elenco giocatori */}
+        {/* Elenco giocatori - più coinvolgente */}
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">
-              Giocatori ({connected.length}/{room.max_players} connessi)
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-white text-[#0a1433] flex items-center justify-center text-sm font-black">{connected.length}</span>
+              Giocatori in lobby
+              <span className="text-white/40 font-semibold">— {connected.length}/{room.max_players} connessi</span>
             </h2>
             {me && (
-              <span className="text-xs text-slate-400">
-                Tu: {me.username} · {formatNumber(me.score)} punti
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-white text-[#0a1433]">
+                Tu: {me.username} · {formatNumber(me.score)} pt
               </span>
             )}
           </div>
           <ul className="space-y-2">
-            {players.map((player) => (
+            {players.map((player) => {
+              const isMe = player.user_id === snapshot.me?.user_id;
+              return (
               <li
                 key={player.user_id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-800/60 border border-slate-700/70 px-4 py-3"
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-all ${isMe ? "bg-white text-[#0a1433] border-white shadow-md" : player.is_ready ? "bg-emerald-500/10 border-emerald-500/20" : "bg-white/5 border-white/10 hover:bg-white/8"}`}
               >
                 <div className="flex items-center gap-3">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${connectionDot(player.connection)}`}
-                  />
+                  <span className={`w-3 h-3 rounded-full shrink-0 ${connectionDot(player.connection)} ${player.connection === "connected" ? "animate-pulse" : ""}`} />
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border ${isMe ? "bg-[#0a1433] text-white border-white/20" : "bg-white/10 border-white/10 text-white"}`}>
+                    {player.username.slice(0,2).toUpperCase()}
+                  </div>
                   <div>
-                    <p className="text-white font-medium">
+                    <p className={`font-black ${isMe ? "text-[#0a1433]" : "text-white"}`}>
                       {player.username}
-                      {player.user_id === snapshot.me?.user_id && (
-                        <span className="text-slate-400 text-xs font-normal"> (tu)</span>
-                      )}
+                      {isMe && <span className={`text-xs font-bold ml-2 px-2 py-0.5 rounded-full ${isMe ? "bg-emerald-500 text-white" : "bg-white/15 text-white"}`}>TU</span>}
+                      {player.is_host && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${isMe ? "bg-amber-400 text-[#1a1200]" : "bg-amber-500/20 text-amber-300 border border-amber-500/20"}`}>HOST</span>}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className={`text-xs font-medium ${isMe ? "text-[#0a1433]/60" : "text-white/50"}`}>
                       {connectionLabel(player.connection)}
-                      {player.is_host ? " · host" : ""}
-                      {player.is_ready ? " · pronto" : " · non pronto"}
+                      {player.is_ready ? " • Pronto ✅" : " • In attesa…"}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-300">{formatNumber(player.score)} pts</span>
+                  <span className={`text-sm font-black px-3 py-1 rounded-full border ${isMe ? "bg-[#0a1433] text-white border-[#0a1433]" : "bg-white/10 text-white border-white/10"}`}>{formatNumber(player.score)} pt</span>
                   {isLobby && isHost && player.user_id !== snapshot.me?.user_id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void handleKick(player.user_id)}
-                      disabled={busy}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => void handleKick(player.user_id)} disabled={busy}>
                       Espelli
                     </Button>
                   )}
                 </div>
               </li>
-            ))}
+            )})}
           </ul>
 
           {isLobby && (

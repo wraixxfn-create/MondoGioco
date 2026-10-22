@@ -19,6 +19,7 @@ import {
   levelTitle,
   modeLabel,
 } from "@/lib/game/progression";
+import { getDailyMissions, getWeeklyMissions, evaluateMissions } from "@/lib/game/missions";
 import {
   fetchMyHistory,
   fetchMyProgression,
@@ -39,7 +40,7 @@ import {
 } from "@/lib/services/player-store";
 
 const inputClass =
-  "w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500";
+  "w-full px-4 py-3 bg-[#02061a] border border-white/15 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#00d9a5] focus:ring-2 focus:ring-[#00d9a5]/20";
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -236,45 +237,52 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Header profilo */}
-      <div className="flex flex-col md:flex-row items-center gap-6">
-        <div
-          className="w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center text-5xl shrink-0"
-          role="img"
-          aria-label={`Avatar: ${avatar.label}`}
-        >
-          {avatar.emoji}
-        </div>
-        <div className="text-center md:text-left flex-1 space-y-2">
-          <h1 className="text-3xl font-bold text-white">{profile.username}</h1>
-          <p className="text-sm text-slate-300">
-            {hasEmailAccount
-              ? `☁️ Account cloud collegato (${profile.email})`
-              : hasGuestSession
-                ? "👾 Sessione ospite online: collega un'email per ritrovare i progressi su altri dispositivi"
-                : "💾 Profilo locale: i progressi sono salvati solo su questo dispositivo"}
-          </p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center md:justify-start text-sm text-slate-300">
-            <span>
-              Livello <span className="font-bold text-emerald-300">{levelInfo.level}</span> ·{" "}
-              {levelTitle(levelInfo.level)}
-            </span>
-            <span>{formatNumber(profile.xp)} XP</span>
-            {profile.longestDailyStreak > 0 && (
-              <span>Serie giornaliera migliore: {profile.longestDailyStreak} giorni</span>
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header profilo premium */}
+      <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#16244d]/90 to-[#0f1a33]/95 backdrop-blur-xl p-6 md:p-8">
+        <div className="absolute -top-20 -right-20 w-64 h-64 bg-emerald-400/15 rounded-full blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-cyan-400/10 rounded-full blur-3xl" />
+        <div className="relative flex flex-col md:flex-row items-center gap-6">
+          <div
+            className="w-24 h-24 rounded-[1.5rem] bg-gradient-to-br from-[#00d9a5] to-[#0ea5e9] flex items-center justify-center text-5xl shrink-0 shadow-[0_12px_32px_rgba(0,217,165,0.25)] border-2 border-white/20"
+            role="img"
+            aria-label={`Avatar: ${avatar.label}`}
+          >
+            {avatar.emoji}
+          </div>
+          <div className="text-center md:text-left flex-1 space-y-2">
+            <h1 className="text-3xl font-black tracking-tighter text-white">{profile.username}</h1>
+            <p className="text-sm text-white/60">
+              {hasEmailAccount
+                ? `☁️ Account cloud collegato (${profile.email})`
+                : hasGuestSession
+                  ? "👾 Sessione ospite online: collega un'email per ritrovare i progressi"
+                  : "💾 Profilo locale: i progressi sono salvati solo su questo dispositivo"}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
+              <span className="px-3 py-1 rounded-full bg-white text-[#0a1433] text-xs font-black">
+                Lv {levelInfo.level} • {levelTitle(levelInfo.level)}
+              </span>
+              <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 text-xs font-semibold text-white/80">
+                {formatNumber(profile.xp)} XP
+              </span>
+              {profile.longestDailyStreak > 0 && (
+                <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/20 text-xs font-semibold text-amber-300">
+                  🔥 Miglior streak {profile.longestDailyStreak} giorni
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/play">
+              <Button size="sm">Gioca ora</Button>
+            </Link>
+            {(hasEmailAccount || hasGuestSession) && (
+              <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
+                Esci
+              </Button>
             )}
           </div>
-        </div>
-        <div className="flex gap-3">
-          <Link href="/play">
-            <Button size="sm">Gioca ora</Button>
-          </Link>
-          {(hasEmailAccount || hasGuestSession) && (
-            <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
-              Esci
-            </Button>
-          )}
         </div>
       </div>
 
@@ -386,12 +394,15 @@ export default function ProfilePage() {
         </p>
       </Card>
 
+      {/* Missioni giornaliere e settimanali */}
+      <MissionsSection />
+
       {/* Statistiche personali e record */}
       <section aria-label="Statistiche personali" className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map((stat) => (
-          <Card key={stat.label} className="text-center">
-            <div className={`text-2xl sm:text-3xl font-bold mb-1 ${stat.color}`}>{stat.value}</div>
-            <p className="text-sm text-slate-300">{stat.label}</p>
+          <Card key={stat.label} className="text-center !p-4 bg-white/[0.04] border-white/10">
+            <div className={`text-2xl sm:text-3xl font-black mb-1 ${stat.color}`}>{stat.value}</div>
+            <p className="text-sm text-white/60">{stat.label}</p>
           </Card>
         ))}
       </section>
@@ -683,7 +694,7 @@ export default function ProfilePage() {
           </p>
         </Card>
       ) : (
-        <Card className="space-y-4">
+        <Card className="space-y-4 !bg-gradient-to-br !from-white/[0.04] !to-transparent">
           <CardHeader
             title="Non hai ancora un account cloud"
             description={
@@ -717,6 +728,92 @@ export default function ProfilePage() {
           )}
         </Card>
       )}
+    </div>
+  );
+}
+
+function MissionsSection() {
+  const [missions, setMissions] = useState<{ daily: ReturnType<typeof getDailyMissions>; weekly: ReturnType<typeof getWeeklyMissions> }>({
+    daily: [],
+    weekly: [],
+  });
+  const [progress, setProgress] = useState<ReturnType<typeof evaluateMissions>>([]);
+  const [weeklyProgress, setWeeklyProgress] = useState<ReturnType<typeof evaluateMissions>>([]);
+  useEffect(() => {
+    const daily = getDailyMissions();
+    const weekly = getWeeklyMissions();
+    setMissions({ daily, weekly });
+    try {
+      const sessions = loadLocalSessions().map(sessionToStatInput);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todaySessions = sessions.filter((s) => s.endedAt.slice(0, 10) === todayStr);
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - 7);
+      const weekStr = weekStart.toISOString().slice(0, 10);
+      const weekSessions = sessions.filter((s) => s.endedAt.slice(0, 10) >= weekStr);
+      setProgress(evaluateMissions(daily, todaySessions));
+      setWeeklyProgress(evaluateMissions(weekly, weekSessions));
+    } catch {}
+  }, []);
+  if (missions.daily.length === 0) return null;
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      <Card className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/20 flex items-center justify-center">📅</span>
+          <h3 className="font-black text-white">Missioni giornaliere</h3>
+          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-amber-500 text-[#1a1200]">OGGI</span>
+        </div>
+        <div className="space-y-2">
+          {progress.map((m) => (
+            <div key={m.def.id} className="rounded-2xl bg-white/5 border border-white/10 p-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{m.def.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white">{m.def.title}</div>
+                  <div className="text-xs text-white/50">{m.def.description}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-white">{m.current}/{m.def.target}</div>
+                  <div className="text-[10px] font-bold text-amber-300">+{m.def.xp} XP</div>
+                </div>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all" style={{ width: `${m.progress * 100}%` }} />
+              </div>
+              {m.completed && <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>}
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-xl bg-violet-500/15 border border-violet-500/20 flex items-center justify-center">🗓️</span>
+          <h3 className="font-black text-white">Missioni settimanali</h3>
+          <span className="ml-auto text-xs font-bold px-2 py-1 rounded-full bg-violet-500 text-white">SETTIMANA</span>
+        </div>
+        <div className="space-y-2">
+          {weeklyProgress.map((m) => (
+            <div key={m.def.id} className="rounded-2xl bg-white/5 border border-white/10 p-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{m.def.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-white">{m.def.title}</div>
+                  <div className="text-xs text-white/50">{m.def.description}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-white">{m.current}/{m.def.target}</div>
+                  <div className="text-[10px] font-bold text-violet-300">+{m.def.xp} XP</div>
+                </div>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-violet-400 to-purple-500 transition-all" style={{ width: `${m.progress * 100}%` }} />
+              </div>
+              {m.completed && <div className="mt-1 text-xs font-bold text-emerald-300">✅ Completata!</div>}
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
