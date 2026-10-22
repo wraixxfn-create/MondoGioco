@@ -27,4 +27,9 @@ jobs:
       - run: npm run type-check
       - run: npm test
       - run: npm run build
-      - run: npm run test:e2e -- --project=chromium --project=mobile-chromium
+      - run: npm run test:e2e -- --project=chromium --project=mobile-chromium --reporter=list,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/results.json
+      - name: Annota i fallimenti E2E
+        if: failure()
+        run: node scripts/ci-e2e-annotations.mjs
