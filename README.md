@@ -42,8 +42,9 @@ npm run verify:remote   # verifica reale: 2 utenti, stanza, round, chiusura
 ## 🎮 Cosa puoi fare
 
 - **Gioca (`/play`)** — Oltre 130 luoghi reali sul globo 3D con indizi progressivi,
-  distanza Haversine e tre modalità (_Allenamento libero_, _Sfida a round_,
-  _Contro il tempo_).
+  distanza Haversine e sette modalità (_Sfida a round_, _Sprint_, _Precisione_,
+  _Sopravvivenza_, _Sfida quotidiana_, _Contro il tempo_, _Allenamento_),
+  combo per le serie di risposte precise e inserimento manuale lat/lng.
 - **Allenamento (`/training`)** — Stati, capitali, bandiere, popolazione e
   coordinate senza limiti di tempo.
 - **Multiplayer (`/multiplayer`)** — Crea una stanza, condividi codice o link,

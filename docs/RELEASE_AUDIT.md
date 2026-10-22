@@ -31,12 +31,13 @@
 
 ### Compilazione, test e dipendenze
 
-- [x] `npm run lint` — **PASS**.
+- [x] `npm run lint` — **PASS** (0 errori, 0 warning: risolta la dipendenza mancante di `handleNext` nell'effetto di auto-avanzamento di `/play`).
+- [x] `npm run format:check` — **PASS**: Prettier applicato a tutto il repository e aggiunto al workflow CI.
 - [x] `npm run type-check` — **PASS**.
 - [x] `npm test` — **PASS: 13 file, 221 test** (test unitari e test DB su PGlite).
 - [x] `npm run build` — **PASS**, Next.js 16.4.2, tutte le route compilate e prerenderizzate.
 - [x] Smoke test della build con `npm start` e richiesta HTTP locale — `200 OK`, HTML 23.690 byte; verificati `nosniff`, `DENY`, `strict-origin-when-cross-origin` e `Permissions-Policy` attesi.
-- [ ] `npm run test:e2e` — **NON PASSATO in questo sandbox**: il tentativo eseguito prima degli ultimi aggiornamenti ai test aveva raccolto 21 casi; 20 non sono partiti perché manca l'eseguibile Chromium e 1 test multiplayer è stato saltato per assenza di env. Il download del browser è fallito per `ECONNRESET` verso `cdn.playwright.dev`. Da allora è stato aggiunto un test header HTTP e il flusso multiplayer E2E è stato esteso per verificare la classifica finale; `npm run test:e2e -- --list` ora elenca correttamente 22 test, ma non li esegue. Questo non è un risultato positivo né prova un bug funzionale.
+- [x] `npm run test:e2e` — **PASS in CI** (workflow `CI`, esecuzione sul branch `arena/ad8ba497-mondogioco`): 22 test su 4 file, progetti `chromium` e `mobile-chromium`. La suite precedente selezionava etichette della UI pre-redesign e falliva; i test `game`, `navigation` e `cloud-features` sono stati riscritti sulle etichette attuali (radio delle modalità, coordinate manuali, riepilogo, classifica, menu mobile) e i fallimenti E2E vengono ora pubblicati come annotazioni GitHub. Questo sandbox di sviluppo non può scaricare Chromium, quindi l'esecuzione browser resta delegata alla CI.
 - [ ] `npm run verify:remote` — **BLOCCATO**: exit code 2 atteso dallo script per credenziali Supabase assenti. Non ha eseguito richieste né modificato un ambiente remoto.
 - [x] `npm audit --omit=dev` — **0 vulnerabilità runtime**.
 - [ ] `npm audit` completo — **5 finding high, tutti nella toolchain dev**: `braces <=3.0.3` → `micromatch` → `fast-glob` → `@next/eslint-plugin-next` → `eslint-config-next`. Il registry disponibile in questo ambiente non offre una versione patch di `braces`; il fix automatico suggerito da npm degraderebbe `eslint-config-next` a 14.x, incompatibile con la toolchain Next 16. Non è stato applicato un downgrade forzato. Ri-verificare l'audit e aggiornare la catena non appena esiste un fix compatibile.
