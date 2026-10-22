@@ -598,7 +598,8 @@ export default function MultiplayerPage() {
               </Link>
             </div>
             <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white/60">
-              💡 Tip: la lobby mostra in tempo reale chi è connesso e pronto — l’avvio è solo dell’host per tenere il ritmo serrato.
+              💡 Tip: la lobby mostra in tempo reale chi è connesso e pronto — l’avvio è solo
+              dell’host per tenere il ritmo serrato.
             </div>
           </Card>
         )}
@@ -607,9 +608,13 @@ export default function MultiplayerPage() {
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-white text-[#0a1433] flex items-center justify-center text-sm font-black">{connected.length}</span>
+              <span className="w-8 h-8 rounded-xl bg-white text-[#0a1433] flex items-center justify-center text-sm font-black">
+                {connected.length}
+              </span>
               Giocatori in lobby
-              <span className="text-white/40 font-semibold">— {connected.length}/{room.max_players} connessi</span>
+              <span className="text-white/40 font-semibold">
+                — {connected.length}/{room.max_players} connessi
+              </span>
             </h2>
             {me && (
               <span className="text-xs font-bold px-3 py-1 rounded-full bg-white text-[#0a1433]">
@@ -621,37 +626,65 @@ export default function MultiplayerPage() {
             {players.map((player) => {
               const isMe = player.user_id === snapshot.me?.user_id;
               return (
-              <li
-                key={player.user_id}
-                className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-all ${isMe ? "bg-white text-[#0a1433] border-white shadow-md" : player.is_ready ? "bg-emerald-500/10 border-emerald-500/20" : "bg-white/5 border-white/10 hover:bg-white/8"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`w-3 h-3 rounded-full shrink-0 ${connectionDot(player.connection)} ${player.connection === "connected" ? "animate-pulse" : ""}`} />
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border ${isMe ? "bg-[#0a1433] text-white border-white/20" : "bg-white/10 border-white/10 text-white"}`}>
-                    {player.username.slice(0,2).toUpperCase()}
+                <li
+                  key={player.user_id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-all ${isMe ? "bg-white text-[#0a1433] border-white shadow-md" : player.is_ready ? "bg-emerald-500/10 border-emerald-500/20" : "bg-white/5 border-white/10 hover:bg-white/8"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-3 h-3 rounded-full shrink-0 ${connectionDot(player.connection)} ${player.connection === "connected" ? "animate-pulse" : ""}`}
+                    />
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm border ${isMe ? "bg-[#0a1433] text-white border-white/20" : "bg-white/10 border-white/10 text-white"}`}
+                    >
+                      {player.username.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className={`font-black ${isMe ? "text-[#0a1433]" : "text-white"}`}>
+                        {player.username}
+                        {isMe && (
+                          <span
+                            className={`text-xs font-bold ml-2 px-2 py-0.5 rounded-full ${isMe ? "bg-emerald-500 text-white" : "bg-white/15 text-white"}`}
+                          >
+                            TU
+                          </span>
+                        )}
+                        {player.is_host && (
+                          <span
+                            className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${isMe ? "bg-amber-400 text-[#1a1200]" : "bg-amber-500/20 text-amber-300 border border-amber-500/20"}`}
+                          >
+                            HOST
+                          </span>
+                        )}
+                      </p>
+                      <p
+                        className={`text-xs font-medium ${isMe ? "text-[#0a1433]/60" : "text-white/50"}`}
+                      >
+                        {connectionLabel(player.connection)}
+                        {player.is_ready ? " • Pronto ✅" : " • In attesa…"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className={`font-black ${isMe ? "text-[#0a1433]" : "text-white"}`}>
-                      {player.username}
-                      {isMe && <span className={`text-xs font-bold ml-2 px-2 py-0.5 rounded-full ${isMe ? "bg-emerald-500 text-white" : "bg-white/15 text-white"}`}>TU</span>}
-                      {player.is_host && <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${isMe ? "bg-amber-400 text-[#1a1200]" : "bg-amber-500/20 text-amber-300 border border-amber-500/20"}`}>HOST</span>}
-                    </p>
-                    <p className={`text-xs font-medium ${isMe ? "text-[#0a1433]/60" : "text-white/50"}`}>
-                      {connectionLabel(player.connection)}
-                      {player.is_ready ? " • Pronto ✅" : " • In attesa…"}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-sm font-black px-3 py-1 rounded-full border ${isMe ? "bg-[#0a1433] text-white border-[#0a1433]" : "bg-white/10 text-white border-white/10"}`}
+                    >
+                      {formatNumber(player.score)} pt
+                    </span>
+                    {isLobby && isHost && player.user_id !== snapshot.me?.user_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleKick(player.user_id)}
+                        disabled={busy}
+                      >
+                        Espelli
+                      </Button>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-sm font-black px-3 py-1 rounded-full border ${isMe ? "bg-[#0a1433] text-white border-[#0a1433]" : "bg-white/10 text-white border-white/10"}`}>{formatNumber(player.score)} pt</span>
-                  {isLobby && isHost && player.user_id !== snapshot.me?.user_id && (
-                    <Button variant="ghost" size="sm" onClick={() => void handleKick(player.user_id)} disabled={busy}>
-                      Espelli
-                    </Button>
-                  )}
-                </div>
-              </li>
-            )})}
+                </li>
+              );
+            })}
           </ul>
 
           {isLobby && (

@@ -5,24 +5,23 @@ test.describe("Classifica, Profilo, Account e Multiplayer", () => {
     page,
   }) => {
     await page.goto("/leaderboard");
-    await expect(page.getByRole("heading", { name: "Classifica" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "I migliori esploratori" })).toBeVisible();
 
     // Mai giocatori di esempio presentati come reali.
     await expect(page.getByText("GeoMaster_MI")).toHaveCount(0);
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      await expect(page.getByText(/Solo i tuoi dati su questo dispositivo/i)).toBeVisible();
-      await expect(
-        page.getByText(/nessun.*giocatore inventat|Nessuna partita registrata/i)
-      ).toBeVisible();
+      await expect(page.getByText(/Solo i tuoi dati locali/i)).toBeVisible();
+      await expect(page.getByText("Nessuna partita registrata")).toBeVisible();
+      await expect(page.getByText(/giocatori inventati/i)).toBeVisible();
     }
 
-    await page.getByRole("button", { name: "Questa Settimana" }).click();
-    await expect(page.getByRole("button", { name: "Questa Settimana" })).toHaveAttribute(
+    await page.getByRole("button", { name: "Settimana" }).click();
+    await expect(page.getByRole("button", { name: "Settimana" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );
-    await page.getByRole("button", { name: "Tutti i Tempi" }).click();
+    await page.getByRole("button", { name: "Sempre" }).click();
 
     // Classifica amici: senza account lo stato deve essere esplicito.
     await page.getByRole("button", { name: /Amici/i }).click();

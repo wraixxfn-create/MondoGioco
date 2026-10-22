@@ -234,7 +234,11 @@ function countForMetric(metric: MissionMetric, sessions: SessionStatInput[]): nu
       return sessions.filter((s) => s.mode === "daily").length;
     case "streak_combo":
       // bestStreak approximated via rounds? fallback
-      return Math.max(0, ...sessions.map((s) => (s as unknown as { bestStreak?: number }).bestStreak ?? 0), 0);
+      return Math.max(
+        0,
+        ...sessions.map((s) => (s as unknown as { bestStreak?: number }).bestStreak ?? 0),
+        0
+      );
     case "continents":
       return new Set(sessions.map((s) => s.mode)).size;
     default:

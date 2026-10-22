@@ -74,7 +74,9 @@ export function CardHeader({ title, description, icon, action }: CardHeaderProps
       )}
       <div className="flex-1 min-w-0">
         <h3 className="text-[17px] font-bold text-white leading-tight">{title}</h3>
-        {description && <p className="text-[13px] text-slate-400 mt-1 leading-snug">{description}</p>}
+        {description && (
+          <p className="text-[13px] text-slate-400 mt-1 leading-snug">{description}</p>
+        )}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -131,7 +133,9 @@ export function StatBadge({
     <div
       className={`rounded-2xl border bg-gradient-to-br px-4 py-3 backdrop-blur-sm ${toneMap[tone]}`}
     >
-      <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400">{label}</div>
+      <div className="text-[11px] font-semibold tracking-widest uppercase text-slate-400">
+        {label}
+      </div>
       <div className="mt-1 flex items-center gap-2">
         {icon && <span className="text-lg">{icon}</span>}
         <span className="text-[15px] font-bold text-white">{value}</span>
