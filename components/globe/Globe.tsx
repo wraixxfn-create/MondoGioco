@@ -22,8 +22,8 @@ import type { GeoCoordinates } from "@/types";
 // ============================================================
 //
 // Texture: "Blue Marble" NASA Visible Earth (pubblico dominio),
-// equirettangolare 4096×2048, servita da /textures/earth-day-4096.jpg
-// (+ normal map per il rilievo). In caso di errore di caricamento
+// equirettangolare, servita in varianti WebP 2048/1024 px
+// (+ normal map per il rilievo, solo su schermi larghi). In caso di errore
 // si passa a una sfera con solo graticcio lat/lng — dichiarata
 // onestamente nella UI, mai spacciata per una mappa.
 //
@@ -35,8 +35,30 @@ import type { GeoCoordinates } from "@/types";
 // mai (si muove solo la camera con OrbitControls), quindi il punto
 // world coincide con il punto locale sulla sfera unitaria.
 
-const EARTH_TEXTURE_URL = "/textures/earth-day-4096.jpg";
-const EARTH_NORMAL_URL = "/textures/earth-normal-2048.jpg";
+// Texture servite in varianti dimensionate (WebP): la 4096×2048 originale
+// pesa 462 KB e veniva scaricata anche su telefoni con un canvas di ~360 px.
+// Il globe non supera ~700 px CSS, quindi 2048 px bastano anche a DPR 2.
+const EARTH_TEXTURE_2048 = "/textures/earth-day-2048.webp";
+const EARTH_TEXTURE_1024 = "/textures/earth-day-1024.webp";
+const EARTH_NORMAL_1024 = "/textures/earth-normal-1024.webp";
+
+interface TextureSet {
+  day: string;
+  /** null = non caricare la normal map (mobile, risparmio dati). */
+  normal: string | null;
+}
+
+/**
+ * Sceglie il set di texture in base al viewport e al risparmio dati.
+ * Su schermi piccoli o in modalità risparmio dati si usa la variante 1024
+ * senza normal map: il rilievo è un dettaglio estetico, la mappa no.
+ */
+export function pickTextureSet(viewportWidth: number, saveData: boolean = false): TextureSet {
+  if (saveData || viewportWidth < 640) {
+    return { day: EARTH_TEXTURE_1024, normal: null };
+  }
+  return { day: EARTH_TEXTURE_2048, normal: EARTH_NORMAL_1024 };
+}
 const INITIAL_FOCUS: GeoCoordinates = { lat: 24, lng: 14 };
 const INITIAL_DISTANCE = 3.2;
 const MIN_DISTANCE = 1.7;
@@ -104,49 +126,96 @@ export function Globe({
   const [hoverCoords, setHoverCoords] = useState<GeoCoordinates | null>(null);
   const [kbCursor, setKbCursor] = useState<GeoCoordinates | null>(null);
   const [kbActive, setKbActive] = useState(false);
+  const [renderActive, setRenderActive] = useState(true);
   const cameraBusRef = useRef<CameraBus>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const texturesRef = useRef<{ day: THREE.Texture | null; normal: THREE.Texture | null }>({
+    day: null,
+    normal: null,
+  });
   const lastHoverAt = useRef(0);
 
   const effectiveTarget = targetCoords ?? highlightCoords ?? null;
 
+  // ---- Sospensione del loop WebGL fuori schermo / a scheda nascosta ----
+  // Senza questo, il globo continuava a disegnare ~60 fps anche scorrendo
+  // la pagina o passando a un'altra scheda (batteria e GPU dei telefoni).
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+
+    let intersecting = true;
+    const update = () => setRenderActive(intersecting && !document.hidden);
+
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver(
+            ([entry]) => {
+              intersecting = entry.isIntersecting;
+              update();
+            },
+            { threshold: 0.01 }
+          );
+    observer?.observe(element);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+
   // ---- Caricamento texture con gestione esplicita degli errori ----
+  // La normal map è facoltativa e parte solo dopo la mappa base, così non
+  // compete con la texture principale per banda/decodifica.
   useEffect(() => {
     let cancelled = false;
     const loader = new THREE.TextureLoader();
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    const set = pickTextureSet(window.innerWidth, Boolean(connection?.saveData));
+
     loader.load(
-      EARTH_TEXTURE_URL,
+      set.day,
       (tex) => {
-        if (cancelled) return;
+        if (cancelled) {
+          tex.dispose();
+          return;
+        }
         tex.colorSpace = THREE.SRGBColorSpace;
+        texturesRef.current.day = tex;
         setEarthTexture(tex);
         setTextureStatus("ready");
+
+        if (!set.normal) return;
+        loader.load(
+          set.normal,
+          (normal) => {
+            if (cancelled) {
+              normal.dispose();
+              return;
+            }
+            texturesRef.current.normal = normal;
+            setNormalTexture(normal);
+          },
+          undefined,
+          () => {
+            /* la normal map è un abbellimento: il suo fallimento è silenzioso */
+          }
+        );
       },
       undefined,
       () => {
         if (!cancelled) setTextureStatus("error");
       }
     );
-    loader.load(
-      EARTH_NORMAL_URL,
-      (tex) => {
-        if (!cancelled) setNormalTexture(tex);
-      },
-      undefined,
-      () => {
-        /* la normal map è un abbellimento: il suo fallimento è silenzioso */
-      }
-    );
     return () => {
       cancelled = true;
+      texturesRef.current.day?.dispose();
+      texturesRef.current.normal?.dispose();
+      texturesRef.current = { day: null, normal: null };
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      earthTexture?.dispose();
-      normalTexture?.dispose();
-    };
-  }, [earthTexture, normalTexture]);
 
   const handlePick = useCallback(
     (coords: GeoCoordinates) => {
@@ -217,6 +286,7 @@ export function Globe({
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full rounded-2xl overflow-hidden border border-slate-800 bg-[#020617] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
       style={{ height, cursor: selectable ? "crosshair" : "grab", touchAction: "none" }}
       tabIndex={selectable ? 0 : -1}
@@ -237,7 +307,8 @@ export function Globe({
           near: 0.1,
           far: 200,
         }}
-        dpr={[1, 1.8]}
+        dpr={[1, 1.75]}
+        frameloop={renderActive ? "always" : "never"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         style={{ background: "transparent" }}
       >

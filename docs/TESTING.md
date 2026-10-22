@@ -95,9 +95,10 @@ per bypassare la logica: le funzioni continuano a leggere `now()`.
   streak giornaliera (confini di mese), avatar/titoli cosmetici, normalizzazione
   impostazioni, statistiche derivate (dato mancante = `null`, non 0), pareggi
   e ordinamento classifiche.
-- `tests/unit/validators.test.ts` — schemi Zod, incluso il fatto che il contratto
-  della risposta non preveda `points`/`isCorrect`.
-- Gli altri test coprono globo, quiz, geo, dataset.
+- `tests/unit/missions.test.ts` — metriche reali delle missioni (nessun campo
+  inesistente), miglior run survival non cumulabile, determinismo della
+  selezione giornaliera, assenza di ricompense XP finte.
+- Gli altri test coprono globo, geo, dataset, obiettivi e paesi.
 
 ---
 

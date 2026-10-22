@@ -91,6 +91,8 @@ export interface LocalSessionEntry {
   xpEarned?: number;
   won?: boolean;
   bullseyes?: number;
+  /** Miglior serie combo della partita (missioni giornaliere/settimanali). */
+  bestStreak?: number;
 }
 
 export interface LeaderboardRow {
@@ -146,6 +148,12 @@ export interface RecordGameOutcome {
   synced: boolean;
   /** True se la partita era già stata registrata (niente doppia ricompensa). */
   duplicate: boolean;
+  /**
+   * Motivo per cui il salvataggio cloud non è riuscito (se `synced` è false
+   * ma esisteva un account). La UI lo mostra: un errore non deve mai
+   * sembrare un successo.
+   */
+  syncError?: string;
 }
 
 export interface HistoryEntry {
@@ -228,6 +236,45 @@ export const INITIAL_LEADERBOARD_ROWS: LeaderboardRow[] = [];
 // Persistenza locale (con migrazione trasparente v1 → v2)
 // ============================================================
 
+/**
+ * Numero finito e non negativo. localStorage e payload cloud possono
+ * contenere NaN/Infinity/stringhe: senza questa normalizzazione un valore
+ * corrotto avvelena XP, livelli e classifiche (e in passato bloccava
+ * `calculateLevel` in un loop infinito).
+ */
+function safeCount(value: unknown, fallback = 0): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;
+}
+
+function safeDateString(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? value : fallback;
+}
+
+function normalizeSessionEntry(raw: unknown): LocalSessionEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const entry = raw as Partial<LocalSessionEntry>;
+  if (typeof entry.id !== "string" || entry.id.length === 0) return null;
+  if (typeof entry.quizType !== "string" || entry.quizType.length === 0) return null;
+  return {
+    id: entry.id,
+    playerId: typeof entry.playerId === "string" ? entry.playerId : "",
+    username: typeof entry.username === "string" ? entry.username : "Esploratore",
+    quizType: entry.quizType,
+    difficulty: typeof entry.difficulty === "string" ? entry.difficulty : "medium",
+    totalScore: safeCount(entry.totalScore),
+    questionsAnswered: safeCount(entry.questionsAnswered),
+    correctAnswers: safeCount(entry.correctAnswers),
+    endedAt: safeDateString(entry.endedAt, new Date(0).toISOString()),
+    xpEarned: safeCount(entry.xpEarned),
+    won: Boolean(entry.won),
+    bullseyes: safeCount(entry.bullseyes),
+    bestStreak: safeCount(entry.bestStreak),
+  };
+}
+
 function createDefaultPlayer(): LocalPlayerState {
   const id = v4FallbackId();
   const suffix = id.replace(/-/g, "").slice(0, 4).toUpperCase();
@@ -249,26 +296,34 @@ export function loadLocalPlayer(): LocalPlayerState {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<LocalPlayerState>;
       if (parsed.playerId && parsed.username) {
-        const sessions = loadLocalSessions();
-        const derived = deriveStats(sessions.map(sessionToStatInput));
+        // I profili v1 non hanno gli aggregati nuovi: li ricostruiamo dallo
+        // storico solo in quel caso (leggere 50 sessioni a ogni render del
+        // profilo è inutile per i profili già migrati).
+        const needsDerived =
+          parsed.totalRounds === undefined ||
+          parsed.totalCorrect === undefined ||
+          parsed.bestScore === undefined;
+        const derived = needsDerived
+          ? deriveStats(loadLocalSessions().map(sessionToStatInput))
+          : null;
         return {
           playerId: parsed.playerId,
           authUserId: parsed.authUserId ?? null,
           username: parsed.username,
           email: parsed.email ?? null,
-          totalScore: Number(parsed.totalScore ?? 0),
-          gamesPlayed: Number(parsed.gamesPlayed ?? 0),
-          gamesWon: Number(parsed.gamesWon ?? 0),
-          bestStreak: Number(parsed.bestStreak ?? 0),
-          bullseyes: Number(parsed.bullseyes ?? 0),
-          xp: Number(parsed.xp ?? 0),
+          totalScore: safeCount(parsed.totalScore),
+          gamesPlayed: safeCount(parsed.gamesPlayed),
+          gamesWon: safeCount(parsed.gamesWon),
+          bestStreak: safeCount(parsed.bestStreak),
+          bullseyes: safeCount(parsed.bullseyes),
+          xp: safeCount(parsed.xp),
           avatarId: typeof parsed.avatarId === "string" ? parsed.avatarId : DEFAULT_AVATAR_ID,
           // Profili v1: ricostruisci gli aggregati nuovi dallo storico reale.
-          totalRounds: Number(parsed.totalRounds ?? derived.totalRounds),
-          totalCorrect: Number(parsed.totalCorrect ?? derived.totalCorrect),
-          bestScore: Number(parsed.bestScore ?? derived.bestScore),
-          dailyStreak: Number(parsed.dailyStreak ?? 0),
-          longestDailyStreak: Number(parsed.longestDailyStreak ?? 0),
+          totalRounds: safeCount(parsed.totalRounds, derived?.totalRounds ?? 0),
+          totalCorrect: safeCount(parsed.totalCorrect, derived?.totalCorrect ?? 0),
+          bestScore: safeCount(parsed.bestScore, derived?.bestScore ?? 0),
+          dailyStreak: safeCount(parsed.dailyStreak),
+          longestDailyStreak: safeCount(parsed.longestDailyStreak),
           lastPlayedOn: typeof parsed.lastPlayedOn === "string" ? parsed.lastPlayedOn : null,
           unlockedAchievements: Array.isArray(parsed.unlockedAchievements)
             ? parsed.unlockedAchievements.filter((id): id is string => typeof id === "string")
@@ -285,10 +340,20 @@ export function loadLocalPlayer(): LocalPlayerState {
   return fresh;
 }
 
+/**
+ * Evento emesso a ogni salvataggio del profilo locale. Header e altre
+ * viste si aggiornano ascoltandolo, invece di interrogare localStorage
+ * ogni 2 secondi (polling che prima girava su ogni pagina).
+ */
+export const PLAYER_CHANGED_EVENT = "mondogioco:player-changed";
+
 export function saveLocalPlayer(player: LocalPlayerState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(player));
+    const serialized = JSON.stringify(player);
+    if (window.localStorage.getItem(PLAYER_STORAGE_KEY) === serialized) return;
+    window.localStorage.setItem(PLAYER_STORAGE_KEY, serialized);
+    window.dispatchEvent(new Event(PLAYER_CHANGED_EVENT));
   } catch {
     // Ignorato in modalità privata ristretta.
   }
@@ -300,7 +365,11 @@ export function loadLocalSessions(): LocalSessionEntry[] {
     const raw = window.localStorage.getItem(SESSIONS_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as LocalSessionEntry[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(normalizeSessionEntry)
+      .filter((entry): entry is LocalSessionEntry => entry !== null)
+      .slice(0, 50);
   } catch {
     return [];
   }
@@ -325,6 +394,8 @@ export function sessionToStatInput(session: LocalSessionEntry): SessionStatInput
     correct: session.correctAnswers,
     endedAt: session.endedAt,
     won: session.won,
+    bullseyes: session.bullseyes ?? 0,
+    bestStreak: session.bestStreak ?? 0,
   };
 }
 
@@ -470,20 +541,17 @@ function mergeCloudProfile(
     username: cloud?.username || local.username,
     email: email ?? cloud?.email ?? local.email,
     avatarId: cloud?.avatar_id || local.avatarId,
-    totalScore: Math.max(local.totalScore, Number(cloud?.total_score ?? 0)),
-    gamesPlayed: Math.max(local.gamesPlayed, Number(cloud?.games_played ?? 0)),
-    gamesWon: Math.max(local.gamesWon, Number(cloud?.games_won ?? 0)),
-    bestStreak: Math.max(local.bestStreak, Number(cloud?.best_streak ?? 0)),
-    bullseyes: Math.max(local.bullseyes, Number(cloud?.bullseyes ?? 0)),
-    xp: Math.max(local.xp, Number(cloud?.xp ?? 0)),
-    totalRounds: Math.max(local.totalRounds, Number(cloud?.total_rounds ?? 0)),
-    totalCorrect: Math.max(local.totalCorrect, Number(cloud?.total_correct ?? 0)),
-    bestScore: Math.max(local.bestScore, Number(cloud?.best_score ?? 0)),
-    dailyStreak: Math.max(local.dailyStreak, Number(cloud?.daily_streak ?? 0)),
-    longestDailyStreak: Math.max(
-      local.longestDailyStreak,
-      Number(cloud?.longest_daily_streak ?? 0)
-    ),
+    totalScore: Math.max(local.totalScore, safeCount(cloud?.total_score)),
+    gamesPlayed: Math.max(local.gamesPlayed, safeCount(cloud?.games_played)),
+    gamesWon: Math.max(local.gamesWon, safeCount(cloud?.games_won)),
+    bestStreak: Math.max(local.bestStreak, safeCount(cloud?.best_streak)),
+    bullseyes: Math.max(local.bullseyes, safeCount(cloud?.bullseyes)),
+    xp: Math.max(local.xp, safeCount(cloud?.xp)),
+    totalRounds: Math.max(local.totalRounds, safeCount(cloud?.total_rounds)),
+    totalCorrect: Math.max(local.totalCorrect, safeCount(cloud?.total_correct)),
+    bestScore: Math.max(local.bestScore, safeCount(cloud?.best_score)),
+    dailyStreak: Math.max(local.dailyStreak, safeCount(cloud?.daily_streak)),
+    longestDailyStreak: Math.max(local.longestDailyStreak, safeCount(cloud?.longest_daily_streak)),
     lastPlayedOn: cloud?.last_played_on ?? local.lastPlayedOn,
     // Le impostazioni cloud vincono solo se contengono davvero delle chiavi:
     // il default del DB è '{}' e non deve cancellare le scelte locali.
@@ -522,6 +590,22 @@ export async function syncPlayerToCloud(player: LocalPlayerState): Promise<boole
 // ============================================================
 // Registrazione partita: locale immediato + server autorevole
 // ============================================================
+
+/** Messaggio leggibile per gli errori di salvataggio della partita. */
+function describeRecordError(message: string | null | undefined): string {
+  const code = (message ?? "").match(/MG\d{3}:[a-z_]+/)?.[0] ?? "";
+  const messages: Record<string, string> = {
+    "MG400:invalid_score": "il server ha rifiutato il punteggio (fuori dal massimo teorico).",
+    "MG400:invalid_xp": "il server ha rifiutato gli XP dichiarati.",
+    "MG400:invalid_round_count": "numero di round non valido per il server.",
+    "MG400:invalid_correct_count": "numero di risposte corrette non valido.",
+    "MG400:invalid_bullseyes": "numero di bullseye non coerente con le risposte corrette.",
+    "MG400:invalid_best_streak": "serie migliore non coerente con le risposte corrette.",
+    "MG429:rate_limited": "troppe partite in poco tempo: riprova tra qualche minuto.",
+    "MG401:authentication_required": "sessione scaduta: accedi di nuovo per sincronizzare.",
+  };
+  return messages[code] ?? "il server non ha accettato il salvataggio (riprova più tardi).";
+}
 
 export async function recordGameResult(input: GameResultInput): Promise<RecordGameOutcome> {
   const prev = loadLocalPlayer();
@@ -589,6 +673,7 @@ export async function recordGameResult(input: GameResultInput): Promise<RecordGa
     xpEarned: gameXp,
     won: Boolean(input.won),
     bullseyes: input.bullseyes ?? 0,
+    bestStreak: input.bestStreak,
   };
   appendLocalSession(sessionEntry);
 
@@ -629,13 +714,22 @@ export async function recordGameResult(input: GameResultInput): Promise<RecordGa
       p_won: Boolean(input.won),
     });
     if (error) {
-      // Deploy progressivo: database ancora alla migrazione 002-004.
-      // Riprova con la vecchia firma a 6 argomenti (senza idempotenza).
+      // Retry SOLO quando il database non conosce ancora la nuova firma
+      // (deploy progressivo, migrazione 002-004). Un errore di rete NON
+      // viene ritentato: la prima chiamata potrebbe essere andata a buon
+      // fine e il retry senza `session_key` registrerebbe la partita due
+      // volte.
+      const missingFunction = /could not find the function|does not exist|PGRST202|404/i.test(
+        error.message
+      );
+      if (!missingFunction) {
+        return { ...outcome, syncError: describeRecordError(error.message) };
+      }
       const retry = await supabase.rpc("record_solo_game", baseArgs);
       data = retry.data;
       error = retry.error;
+      if (error) return { ...outcome, syncError: describeRecordError(error.message) };
     }
-    if (error) return outcome;
 
     const cloud = asCloudProfile(data);
     if (cloud && sessionData.session.user) {

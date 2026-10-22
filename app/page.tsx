@@ -192,7 +192,7 @@ export default function HomePage() {
             icon={<span className="text-2xl">🌍</span>}
           />
           <p className="text-sm text-white/60">
-            Ogni click è una coordenata reale Haversine. Arco di volo e midpoint animano il reveal.
+            Ogni click è una coordinata reale Haversine. Arco di volo e midpoint animano il reveal.
           </p>
         </Card>
         <Card hover>

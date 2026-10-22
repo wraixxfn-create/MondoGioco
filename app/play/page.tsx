@@ -138,6 +138,7 @@ export default function PlayPage() {
   const [xpEarned, setXpEarned] = useState<number | null>(null);
   const [newAchievements, setNewAchievements] = useState<AchievementDef[]>([]);
   const [resultSynced, setResultSynced] = useState<boolean | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [showHintCost, setShowHintCost] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
   const savedGameRef = useRef<GeoGameState | null>(null);
@@ -217,6 +218,7 @@ export default function PlayPage() {
       setXpEarned(null);
       setNewAchievements([]);
       setResultSynced(null);
+      setSyncError(null);
       sessionIdRef.current = v4FallbackId();
       savedGameRef.current = null;
       setScreen("game");
@@ -326,6 +328,7 @@ export default function PlayPage() {
       setXpEarned(res.xpEarned);
       setNewAchievements(res.newlyUnlocked);
       setResultSynced(res.synced);
+      setSyncError(res.syncError ?? null);
     });
   }, [screen, game]);
 
@@ -436,6 +439,13 @@ export default function PlayPage() {
                   +{formatNumber(xpEarned)} XP ·{" "}
                   {resultSynced ? "Sincronizzato nel cloud" : "Salvato localmente"}
                 </div>
+              )}
+
+              {resultSynced === false && syncError && (
+                <p role="status" className="text-xs text-amber-300/90">
+                  Sincronizzazione cloud non riuscita: {syncError} Il risultato resta salvato su
+                  questo dispositivo.
+                </p>
               )}
 
               {newAchievements.length > 0 && (

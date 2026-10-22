@@ -247,10 +247,6 @@ export function isMultiplayerAvailable(): boolean {
   return isConfigured();
 }
 
-export function multiplayerSetupMessage(): string {
-  return SUPABASE_SETUP_MESSAGE;
-}
-
 /**
  * Traduce gli errori di PostgREST/fetch in codici interni stabili.
  */
@@ -258,8 +254,16 @@ export function mapTransportError(message: string | null | undefined): string {
   if (!message) return "NETWORK";
   const mg = message.match(/MG\d{3}:[a-z_]+/);
   if (mg) return mg[0];
-  if (/permission denied/i.test(message)) return "MG403:permission_denied";
-  if (/Failed to fetch|NetworkError|AbortError|timeout|fetch/i.test(message)) return "NETWORK";
+  // Un rifiuto di RLS/autorizzazione NON è un problema di rete: mostrarlo
+  // come "NETWORK" faceva riprovare all'infinito e nascondeva la causa
+  // reale (policy mancante o sessione con ruolo sbagliato).
+  if (/permission denied|row-level security|not authorized/i.test(message)) {
+    return "MG403:permission_denied";
+  }
+  if (/jwt expired|invalid jwt|invalid claim|no session/i.test(message)) return "SESSION";
+  if (/Failed to fetch|NetworkError|AbortError|timeout|fetch|offline/i.test(message)) {
+    return "NETWORK";
+  }
   return "NETWORK";
 }
 
@@ -279,7 +283,6 @@ export function isValidRoomCode(code: string): boolean {
 // ============================================================
 
 let clockOffsetMs = 0;
-let clockSyncedAt = 0;
 
 export function getServerClockOffset(): number {
   return clockOffsetMs;
@@ -308,7 +311,6 @@ export async function syncServerClock(): Promise<number | null> {
     const roundTrip = after - before;
     const serverMs = new Date(data).getTime() + roundTrip / 2;
     clockOffsetMs = serverMs - Date.now();
-    clockSyncedAt = Date.now();
     return clockOffsetMs;
   } catch {
     return null;
@@ -325,10 +327,6 @@ export function applyServerTimestamp(isoDate: string | null | undefined): void {
   const timestamp = new Date(isoDate).getTime();
   if (Number.isNaN(timestamp)) return;
   clockOffsetMs = timestamp - Date.now();
-}
-
-export function clockWasSyncedRecently(maxAgeMs = 60_000): boolean {
-  return clockSyncedAt > 0 && Date.now() - clockSyncedAt < maxAgeMs;
 }
 
 // ============================================================
@@ -553,11 +551,9 @@ export function subscribeToRoom(
       { event: "*", schema: "public", table: "game_rooms", filter: `id=eq.${roomId}` },
       () => handlers.onChange()
     )
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "game_room_members", filter: `room_id=eq.${roomId}` },
-      () => handlers.onChange()
-    )
+    // `game_room_members` non è più leggibile dai client (migrazione 006:
+    // i punteggi live non devono trapelare) e non è nella publication.
+    // Ogni cambio di membri aggiorna `game_rooms.version`, già ascoltata.
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "game_events", filter: `room_id=eq.${roomId}` },

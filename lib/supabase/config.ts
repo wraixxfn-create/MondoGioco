@@ -27,15 +27,21 @@ function looksLikePlaceholder(value: string): boolean {
   return /your-|placeholder|example\.com|<.*>/i.test(value);
 }
 
+/**
+ * Chiave pubblica valida: JWT "anon" storica (tre segmenti) oppure il nuovo
+ * formato `sb_publishable_...`. Accettare entrambi evita che un progetto
+ * creato di recente risulti "non configurato" solo per il formato della chiave.
+ */
+function looksLikePublicKey(value: string): boolean {
+  if (/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(value)) return true;
+  return value.split(".").length === 3 && value.length > 40;
+}
+
 export const isSupabaseConfigured: boolean =
   /^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(SUPABASE_URL) &&
-  SUPABASE_ANON_KEY.split(".").length === 3 &&
-  SUPABASE_ANON_KEY.length > 40 &&
+  looksLikePublicKey(SUPABASE_ANON_KEY) &&
   !looksLikePlaceholder(SUPABASE_URL) &&
   !looksLikePlaceholder(SUPABASE_ANON_KEY);
 
 export const SUPABASE_SETUP_MESSAGE =
   "Supabase non è configurato: imposta NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local (vedi docs/SUPABASE_SETUP.md).";
-
-export const SUPABASE_REALTIME_DISABLED_MESSAGE =
-  "Supabase Realtime non è attivo sul progetto: il multiplayer usa comunque la sincronizzazione periodica via RPC.";

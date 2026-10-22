@@ -93,9 +93,11 @@ describe("record_solo_game v2: statistiche complete e idempotenza", () => {
     expect(profile.total_correct).toBe(4);
     expect(profile.best_score).toBe(5000);
     expect(profile.daily_streak).toBe(1);
-    // 120 XP di partita + 100 (Prima Partita) + 250 (Occhio di Falco)
+    // XP autorevoli del server (stessa formula di `computeGameXp`):
+    // round(5000/12) + 40 (bullseye) + 5×15 (round) + 75 (vittoria) = 607.
+    // Più 100 (Prima Partita) + 250 (Occhio di Falco) di obiettivi.
     expect(profile.achievement_xp).toBe(350);
-    expect(profile.xp).toBe(470);
+    expect(profile.xp).toBe(957);
     expect(profile.newly_unlocked).toEqual(expect.arrayContaining(["first_game", "bullseye_1"]));
 
     // Seconda partita distinta: gli stessi obiettivi NON pagano di nuovo.
@@ -112,7 +114,8 @@ describe("record_solo_game v2: statistiche complete e idempotenza", () => {
       false,
     ]);
     expect(second.error).toBeNull();
-    expect(second.data!.xp).toBe(520);
+    // round(1000/12) + 40 (bullseye) + 5×15 = 198, nessun nuovo obiettivo.
+    expect(second.data!.xp).toBe(957 + 198);
     expect(second.data!.achievement_xp).toBe(0);
     expect(second.data!.games_played).toBe(2);
     expect(second.data!.daily_streak).toBe(1); // stesso giorno UTC
@@ -130,7 +133,7 @@ describe("record_solo_game v2: statistiche complete e idempotenza", () => {
     expect(retry.error).toBeNull();
     expect(retry.data!.duplicate).toBe(true);
     expect(retry.data!.games_played).toBe(1);
-    expect(retry.data!.xp).toBe(470);
+    expect(retry.data!.xp).toBe(957);
 
     const sessions = await db.query<{ count: string }>(
       "SELECT count(*)::text AS count FROM app_private.profile_sessions WHERE user_id = $1",

@@ -380,6 +380,10 @@ export interface SessionStatInput {
   correct: number;
   endedAt: string;
   won?: boolean;
+  /** Colpi entro 25 km registrati nella partita (missioni/obiettivi). */
+  bullseyes?: number;
+  /** Miglior serie combo della partita (missioni). */
+  bestStreak?: number;
 }
 
 export function isMultiplayerMode(mode: string): boolean {

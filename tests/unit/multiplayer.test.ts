@@ -117,7 +117,11 @@ describe("Multiplayer: configurazione e validazioni", () => {
     expect(describeMultiplayerError("MG403:host_only")).toMatch(/host/i);
     expect(describeMultiplayerError("MG404:room_not_found")).toMatch(/codice stanza/i);
     expect(describeMultiplayerError("sconosciuto")).toContain("sconosciuto");
-    expect(mapTransportError("new row violates row-level security policy")).toBe("NETWORK");
+    // Un blocco RLS è un problema di autorizzazione, non di rete.
+    expect(mapTransportError("new row violates row-level security policy")).toBe(
+      "MG403:permission_denied"
+    );
+    expect(mapTransportError("JWT expired")).toBe("SESSION");
     expect(mapTransportError("MG429:rate_limited")).toBe("MG429:rate_limited");
     expect(mapTransportError("permission denied for table game_rooms")).toBe(
       "MG403:permission_denied"
@@ -191,4 +195,22 @@ describe("Multiplayer: timer e stato", () => {
 
 beforeEach(() => {
   window.localStorage.clear();
+});
+
+describe("Globe: scelta delle texture", () => {
+  it("usa la variante leggera senza normal map su mobile o con risparmio dati", async () => {
+    const { pickTextureSet } = await import("@/components/globe/Globe");
+    expect(pickTextureSet(390)).toEqual({
+      day: "/textures/earth-day-1024.webp",
+      normal: null,
+    });
+    expect(pickTextureSet(1440, true)).toEqual({
+      day: "/textures/earth-day-1024.webp",
+      normal: null,
+    });
+    expect(pickTextureSet(1440)).toEqual({
+      day: "/textures/earth-day-2048.webp",
+      normal: "/textures/earth-normal-1024.webp",
+    });
+  });
 });

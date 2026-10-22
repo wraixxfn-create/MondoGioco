@@ -1,8 +1,10 @@
 // ============================================================
 // MondoGioco — Missioni giornaliere e settimanali
 // ============================================================
-// Puramente cosmetiche, non manipolative: ricompense XP modeste,
-// senza loop infiniti o paywall.
+// Obiettivi di pratica (giornalieri/settimanali) calcolati dallo storico
+// REALE del dispositivo. Non assegnano XP: una ricompensa deve essere
+// accreditata dal server (come per gli obiettivi di progressione), e una
+// ricompensa solo locale sarebbe una promessa falsa. Vedi docs/PROGRESSION.md.
 
 import type { SessionStatInput } from "./progression";
 import { createSeededRng } from "./engine";
@@ -13,10 +15,9 @@ export type MissionMetric =
   | "bullseyes"
   | "sprint"
   | "precision"
-  | "survival"
+  | "survival_best_run"
   | "daily_challenge"
-  | "streak_combo"
-  | "continents";
+  | "streak_combo";
 
 export interface MissionDef {
   id: string;
@@ -26,9 +27,6 @@ export interface MissionDef {
   frequency: MissionFrequency;
   metric: MissionMetric;
   target: number;
-  xp: number;
-  /** Testo breve del premio cosmetico se presente */
-  cosmetic?: string;
 }
 
 export const DAILY_MISSIONS_POOL: MissionDef[] = [
@@ -40,7 +38,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "games",
     target: 1,
-    xp: 40,
   },
   {
     id: "daily_games_2",
@@ -50,7 +47,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "games",
     target: 2,
-    xp: 60,
   },
   {
     id: "daily_bullseye_1",
@@ -60,7 +56,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "bullseyes",
     target: 1,
-    xp: 80,
   },
   {
     id: "daily_sprint_1",
@@ -70,7 +65,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "sprint",
     target: 1,
-    xp: 50,
   },
   {
     id: "daily_precision_1",
@@ -80,7 +74,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "precision",
     target: 1,
-    xp: 50,
   },
   {
     id: "daily_survival_3",
@@ -88,9 +81,8 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     description: "Supera 3 round in Sopravvivenza",
     icon: "🛡️",
     frequency: "daily",
-    metric: "survival",
+    metric: "survival_best_run",
     target: 3,
-    xp: 70,
   },
   {
     id: "daily_combo_2",
@@ -100,7 +92,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "streak_combo",
     target: 2,
-    xp: 60,
   },
   {
     id: "daily_challenge_1",
@@ -110,8 +101,6 @@ export const DAILY_MISSIONS_POOL: MissionDef[] = [
     frequency: "daily",
     metric: "daily_challenge",
     target: 1,
-    xp: 80,
-    cosmetic: "Cornice giornaliera",
   },
 ];
 
@@ -124,7 +113,6 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     frequency: "weekly",
     metric: "games",
     target: 10,
-    xp: 200,
   },
   {
     id: "weekly_bullseyes_5",
@@ -134,7 +122,6 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     frequency: "weekly",
     metric: "bullseyes",
     target: 5,
-    xp: 250,
   },
   {
     id: "weekly_sprint_3",
@@ -144,7 +131,6 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     frequency: "weekly",
     metric: "sprint",
     target: 3,
-    xp: 180,
   },
   {
     id: "weekly_survival_10",
@@ -152,9 +138,8 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     description: "Sopravvivi a 10 round in Survival",
     icon: "🏔️",
     frequency: "weekly",
-    metric: "survival",
+    metric: "survival_best_run",
     target: 10,
-    xp: 300,
   },
   {
     id: "weekly_combo_4",
@@ -164,7 +149,6 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     frequency: "weekly",
     metric: "streak_combo",
     target: 4,
-    xp: 220,
   },
   {
     id: "weekly_precision_5",
@@ -174,7 +158,6 @@ export const WEEKLY_MISSIONS_POOL: MissionDef[] = [
     frequency: "weekly",
     metric: "precision",
     target: 5,
-    xp: 200,
   },
 ];
 
@@ -216,31 +199,23 @@ function countForMetric(metric: MissionMetric, sessions: SessionStatInput[]): nu
     case "games":
       return sessions.length;
     case "bullseyes":
-      // we approximate bullseyes as correct with high score? Actually we need proper count
-      // For now count sessions with high score? Better count from bullseye field if available
-      // Fallback: count sessions where score > 3000 as proxy? But we have correct counting via derive
-      // We'll count total correct as proxy for now? Let's use sessions length with correct>0?
-      // Actually we store sessions with bullseyes count? Let's count via sessions' correct field as bullseyes proxy
-      // To keep simple, we track via XP? We'll approximate: use total games with bullseye = count where session has at least 1 bullseye
-      // Since SessionStatInput doesn't have bullseyes, we use sessions with high average? We'll treat as totalCorrect
-      return sessions.reduce((sum, s) => sum + (s.correct ?? 0), 0);
+      // Colpi entro 25 km realmente registrati nella sessione.
+      return sessions.reduce((sum, session) => sum + (session.bullseyes ?? 0), 0);
     case "sprint":
-      return sessions.filter((s) => s.mode === "sprint").length;
+      return sessions.filter((session) => session.mode === "sprint").length;
     case "precision":
-      return sessions.filter((s) => s.mode === "precision").length;
-    case "survival":
-      return sessions.filter((s) => s.mode === "survival").reduce((sum, s) => sum + s.rounds, 0);
+      return sessions.filter((session) => session.mode === "precision").length;
+    case "survival_best_run":
+      // Miglior singola partita: "supera N round" non è cumulabile tra run.
+      return sessions
+        .filter((session) => session.mode === "survival")
+        .reduce((best, session) => Math.max(best, session.rounds), 0);
     case "daily_challenge":
-      return sessions.filter((s) => s.mode === "daily").length;
+      return sessions.filter((session) => session.mode === "daily").length;
     case "streak_combo":
-      // bestStreak approximated via rounds? fallback
-      return Math.max(
-        0,
-        ...sessions.map((s) => (s as unknown as { bestStreak?: number }).bestStreak ?? 0),
-        0
-      );
-    case "continents":
-      return new Set(sessions.map((s) => s.mode)).size;
+      // Miglior serie combo della finestra (prima il campo non esisteva
+      // nell'input: la missione non si completava mai).
+      return sessions.reduce((best, session) => Math.max(best, session.bestStreak ?? 0), 0);
     default:
       return 0;
   }
@@ -259,48 +234,4 @@ export function evaluateMissions(
       completed: current >= def.target,
     };
   });
-}
-
-// Local storage helpers for claimed missions
-const CLAIMED_KEY = "mondogioco:missions:claimed:v1";
-
-function storageAvailable(): boolean {
-  try {
-    return typeof window !== "undefined" && Boolean(window.localStorage);
-  } catch {
-    return false;
-  }
-}
-
-export function getClaimedMissions(): Set<string> {
-  if (!storageAvailable()) return new Set();
-  try {
-    const raw = window.localStorage.getItem(CLAIMED_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : []);
-  } catch {
-    return new Set();
-  }
-}
-
-export function claimMission(missionId: string): void {
-  if (!storageAvailable()) return;
-  const claimed = getClaimedMissions();
-  claimed.add(missionId);
-  try {
-    window.localStorage.setItem(CLAIMED_KEY, JSON.stringify([...claimed]));
-  } catch {}
-}
-
-export function isMissionClaimed(missionId: string): boolean {
-  return getClaimedMissions().has(missionId);
-}
-
-// Daily streak helpers for UI
-export function getMissionsForToday(date: Date = new Date()): {
-  daily: MissionDef[];
-  weekly: MissionDef[];
-} {
-  return { daily: getDailyMissions(date), weekly: getWeeklyMissions(date) };
 }

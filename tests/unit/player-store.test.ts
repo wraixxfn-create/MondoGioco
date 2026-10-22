@@ -3,6 +3,8 @@ import { createMultiplayerRoom } from "@/lib/services/multiplayer";
 import {
   computeXpGain,
   describeAuthError,
+  PLAYER_CHANGED_EVENT,
+  saveLocalPlayer,
   fetchFriends,
   fetchLeaderboard,
   fetchMyHistory,
@@ -35,6 +37,56 @@ describe("Player Store & Leaderboard", () => {
     expect(first.playerId).toBe(second.playerId);
     expect(first.username).toMatch(/^Esploratore_/);
     expect(first.gamesPlayed).toBe(0);
+  });
+
+  it("sopravvive a un localStorage corrotto (NaN/stringhe/valori mancanti)", () => {
+    window.localStorage.setItem(
+      "mondogioco:player:v1",
+      JSON.stringify({
+        playerId: "3b0d0b62-48d2-4bb5-9fb4-0000000000aa",
+        username: "Corrotto",
+        xp: "non-un-numero",
+        totalScore: Number.NaN,
+        gamesPlayed: -12,
+        totalRounds: null,
+        bestScore: "999999",
+        avatarId: 42,
+        unlockedAchievements: ["first_game", 7, null],
+        settings: "rotto",
+      })
+    );
+    window.localStorage.setItem(
+      "mondogioco:sessions:v1",
+      JSON.stringify([
+        { id: "ok", quizType: "challenge", totalScore: "5000", questionsAnswered: 5 },
+        { id: 12, quizType: "challenge" },
+        null,
+      ])
+    );
+
+    const player = loadLocalPlayer();
+    expect(player.xp).toBe(0);
+    expect(player.totalScore).toBe(0);
+    expect(player.gamesPlayed).toBe(0);
+    expect(player.totalRounds).toBe(0);
+    expect(player.bestScore).toBe(999999);
+    expect(player.avatarId).toBe("globe");
+    expect(player.unlockedAchievements).toEqual(["first_game"]);
+    // Le sessioni non valide vengono scartate, i numeri normalizzati.
+    expect(loadLocalSessions()).toHaveLength(1);
+    expect(loadLocalSessions()[0].totalScore).toBe(5000);
+  });
+
+  it("emette un evento quando il profilo cambia (niente polling nell'header)", () => {
+    const player = loadLocalPlayer(); // crea il profilo di default
+    const listener = vi.fn();
+    window.addEventListener(PLAYER_CHANGED_EVENT, listener);
+    saveLocalPlayer({ ...player, xp: player.xp + 10 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    // Salvare lo stesso valore non deve generare eventi inutili.
+    saveLocalPlayer({ ...player, xp: player.xp + 10 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(PLAYER_CHANGED_EVENT, listener);
   });
 
   it("calcola correttamente gli XP guadagnati", () => {

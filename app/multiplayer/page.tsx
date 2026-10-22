@@ -77,6 +77,7 @@ export default function MultiplayerPage() {
   const [busy, setBusy] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [clockReady, setClockReady] = useState(false);
+  const [offline, setOffline] = useState(false);
   // Inizializzato a 0 e aggiornato solo lato client: evita Date.now() in prerender.
   const [now, setNow] = useState(0);
 
@@ -107,6 +108,7 @@ export default function MultiplayerPage() {
   // ============================================================
   const applySnapshot = useCallback((next: RoomSnapshot) => {
     applyingRef.current = Date.now();
+    setOffline(false);
     setSnapshot(next);
     setActiveRoomId(next.room.id);
     rememberActiveRoom(next.room.id, next.room.code);
@@ -114,7 +116,10 @@ export default function MultiplayerPage() {
     // Correzione leggera continua dell'orologio (la stima fine è in
     // syncServerClock, che misura il round-trip).
     applyServerTimestamp(next.server_time);
-    setNow(Date.now());
+    // `serverNowMs()` include l'offset appena aggiornato: usare Date.now()
+    // qui faceva "saltare" il countdown a ogni snapshot su dispositivi con
+    // orologio non allineato.
+    setNow(serverNowMs());
   }, []);
 
   const clearRoom = useCallback((message?: string) => {
@@ -212,10 +217,14 @@ export default function MultiplayerPage() {
   // Timer locale (basato sui timestamp del server)
   // ============================================================
   useEffect(() => {
+    // Il timer serve solo mentre si è in una stanza non chiusa: prima
+    // faceva ri-renderizzare l'intera pagina 4 volte al secondo anche nel
+    // menu, senza alcun beneficio visibile.
+    if (!activeRoomId || snapshot?.room.phase === "closed") return;
     setNow(serverNowMs());
     const interval = setInterval(() => setNow(serverNowMs()), 250);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeRoomId, snapshot?.room.phase]);
 
   // Risincronizza l'orologio ogni minuto mentre si gioca
   useEffect(() => {
@@ -267,10 +276,13 @@ export default function MultiplayerPage() {
       const result = await sendHeartbeat(activeRoomId);
       if (cancelled) return;
       if (result.ok) {
+        setOffline(false);
         applySnapshot(result.snapshot);
       } else if (result.error !== "NETWORK") {
         handleRoomFailure(result.error);
       } else {
+        // Rete assente: il gioco resta visibile ma non può avanzare.
+        setOffline(true);
         setRealtimeStatus("error");
       }
     };
@@ -390,7 +402,15 @@ export default function MultiplayerPage() {
     const roomId = activeRoomId;
     clearRoom();
     setNotice("Hai lasciato la stanza.");
-    if (roomId) await leaveMultiplayerRoom(roomId);
+    if (!roomId) return;
+    const result = await leaveMultiplayerRoom(roomId);
+    if (!result.ok) {
+      // Non nascondere il fallimento: il server continua a considerarti
+      // presente finché non scade la grazia di riconnessione.
+      setError(
+        `${describeMultiplayerError(result.error)} La stanza ti considererà assente dopo il timeout.`
+      );
+    }
   };
 
   const handleCloseRoom = async () => {
@@ -552,6 +572,15 @@ export default function MultiplayerPage() {
             {notice}
           </p>
         )}
+        {offline && !isClosed && (
+          <p
+            role="alert"
+            className="text-sm text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3"
+          >
+            Connessione al server persa: punteggi e risposte non vengono inviati. Riprovo
+            automaticamente; puoi anche ricaricare la pagina per rientrare nella stanza.
+          </p>
+        )}
         {hostAway && !isClosed && (
           <p
             role="status"
@@ -611,7 +640,7 @@ export default function MultiplayerPage() {
               <span className="w-8 h-8 rounded-xl bg-white text-[#0a1433] flex items-center justify-center text-sm font-black">
                 {connected.length}
               </span>
-              Giocatori in lobby
+              {isLobby ? "Giocatori in lobby" : "Giocatori"}
               <span className="text-white/40 font-semibold">
                 — {connected.length}/{room.max_players} connessi
               </span>
