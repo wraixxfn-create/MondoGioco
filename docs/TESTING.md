@@ -32,6 +32,18 @@ reali. Le differenze note rispetto a Supabase hosted:
 - `uuid-ossp` non è disponibile: la funzione è emulata con `gen_random_uuid()`;
 - l'IP del client non esiste, quindi non si può testare un rate limit per IP.
 
+### Progressione server (`tests/db/progression.test.ts`)
+
+Copie degli stessi scenari di accettazione lato database (migrazione 005):
+aggregati completi da `record_solo_game`, **idempotenza** con `session_key`
+(retry senza doppie statistiche), XP obiettivo accreditati **una sola volta**,
+compatibilità con la firma storica a 6 argomenti, validazione
+bullseye/streak, autenticazione obbligatoria sulle RPC sensibili, streak
+giornaliera (giorno dopo/salto), catalogo avatar e sblocco per livello,
+impostazioni solo note e booleane, progressione/storico **solo del
+chiamante**, amici per nickname, classifica amici senza email, spareggio
+classifica ed esclusione degli utenti senza partite.
+
 ### Scenari coperti (`tests/db/multiplayer.test.ts`)
 
 | Requisito                               | Test                                                                                                                                                                           |
@@ -72,8 +84,17 @@ per bypassare la logica: le funzioni continuano a leggere `now()`.
 - `tests/unit/multiplayer.test.ts` — configurazione assente, normalizzazione dei
   codici (alfabeto senza `I/O/0/1`), mapping errori, timer dai timestamp server,
   memoria della stanza attiva, condizioni di avvio, host assente.
-- `tests/unit/player-store.test.ts` — persistenza locale, XP, classifica offline,
-  validazione nickname, **nessuna finta stanza** quando Supabase non è configurato.
+- `tests/unit/player-store.test.ts` — persistenza locale (migrazione v1→v2), XP,
+  idempotenza locale per `sessionId`, obiettivi una sola volta, streak,
+  accuratezza/record, **nessun giocatore inventato** in classifica locale,
+  stati espliciti senza cloud (amici/auth/recupero), traduzione errori Auth,
+  avatar bloccati/sbloccati, impostazioni persistenti con riduzione animazioni
+  applicata al DOM, validazione nickname, **nessuna finta stanza** quando
+  Supabase non è configurato.
+- `tests/unit/progression.test.ts` — regole XP documentate, catalogo obiettivi,
+  streak giornaliera (confini di mese), avatar/titoli cosmetici, normalizzazione
+  impostazioni, statistiche derivate (dato mancante = `null`, non 0), pareggi
+  e ordinamento classifiche.
 - `tests/unit/validators.test.ts` — schemi Zod, incluso il fatto che il contratto
   della risposta non preveda `points`/`isCorrect`.
 - Gli altri test coprono globo, quiz, geo, dataset.

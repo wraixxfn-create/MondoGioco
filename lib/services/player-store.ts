@@ -1,7 +1,53 @@
+/**
+ * Servizio giocatore di MondoGioco: profilo locale (offline-first),
+ * account cloud Supabase Auth, progressione verificata dal server,
+ * storico, impostazioni, amici e classifiche.
+ *
+ * Principi (invariati dai passaggi precedenti, estesi):
+ * - Il gioco in singolo funziona senza configurazione: i progressi vivono
+ *   in localStorage e NON vengono mai presentati come dati cloud.
+ * - Con un account Supabase, punteggio/XP/statistiche passano da RPC
+ *   `security definer` (`record_solo_game`, migrazioni 002+005) che li
+ *   valida lato server; gli XP obiettivo li accredita solo il server.
+ * - Nessun dato inventato: niente giocatori "seed" in classifica. Senza
+ *   cloud la classifica locale contiene solo il giocatore corrente (solo
+ *   se ha davvero giocato); senza account la classifica amici è in stato
+ *   esplicito "non disponibile".
+ * - Anti-duplicazione: ogni partita ha un `sessionId` stabile usato come
+ *   chiave di idempotenza sia in locale sia sul server (`session_key`);
+ *   gli obiettivi sono sbloccati una sola volta (lista persistita in
+ *   locale, PK sul server).
+ */
 import { getBrowserClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isSupabaseConfigured, SUPABASE_SETUP_MESSAGE } from "@/lib/supabase/config";
 import { calculateLevel } from "@/lib/utils";
 import { v4FallbackId } from "@/lib/utils/id";
+import {
+  assignRanks,
+  compareLeaderboardEntries,
+  computeGameXp,
+  DEFAULT_AVATAR_ID,
+  DEFAULT_USER_SETTINGS,
+  deriveStats,
+  EMPTY_PROGRESSION_STATS,
+  evaluateAchievements,
+  getAvatar,
+  isAvatarUnlocked,
+  localDateKey,
+  nextDailyStreak,
+  normalizeUserSettings,
+  userSettingsToDb,
+  type AchievementDef,
+  type ProgressionStats,
+  type SessionStatInput,
+  type UserSettings,
+} from "@/lib/game/progression";
+
+export type { UserSettings } from "@/lib/game/progression";
+
+// ============================================================
+// Tipi pubblici (compatibili con le versioni precedenti)
+// ============================================================
 
 export interface LocalPlayerState {
   playerId: string;
@@ -14,6 +60,21 @@ export interface LocalPlayerState {
   bestStreak: number;
   bullseyes: number;
   xp: number;
+  // --- Campi aggiunti dal passaggio "utente & progressione" (v2).
+  // I profili v1 già salvati vengono migrati in `loadLocalPlayer`.
+  /** Avatar cosmetico selezionato (catalogo in lib/game/progression.ts). */
+  avatarId: string;
+  totalRounds: number;
+  totalCorrect: number;
+  /** Record personale: miglior punteggio in una singola partita. */
+  bestScore: number;
+  dailyStreak: number;
+  longestDailyStreak: number;
+  /** Ultimo giorno di gioco (data locale del dispositivo) oppure null. */
+  lastPlayedOn: string | null;
+  /** Obiettivi già sbloccati (id): la ricompensa non è mai ripetuta. */
+  unlockedAchievements: string[];
+  settings: UserSettings;
 }
 
 export interface LocalSessionEntry {
@@ -26,6 +87,10 @@ export interface LocalSessionEntry {
   questionsAnswered: number;
   correctAnswers: number;
   endedAt: string;
+  // Campi opzionali v2 (le sessioni v1 non li hanno: trattati come assenti).
+  xpEarned?: number;
+  won?: boolean;
+  bullseyes?: number;
 }
 
 export interface LeaderboardRow {
@@ -35,10 +100,20 @@ export interface LeaderboardRow {
   totalScore: number;
   gamesPlayed: number;
   level: number;
+  avatarId: string;
   isCurrentPlayer: boolean;
 }
 
 export type TimeRange = "all" | "week" | "month";
+export type LeaderboardScope = "global" | "friends";
+export type LeaderboardSource = "cloud" | "local" | "unavailable";
+
+export interface LeaderboardResult {
+  entries: LeaderboardRow[];
+  source: LeaderboardSource;
+  /** Presente quando source = 'unavailable': spiega cosa serve per abilitarla. */
+  notice?: string;
+}
 
 export interface GameResultInput {
   mode: string;
@@ -49,10 +124,77 @@ export interface GameResultInput {
   bestStreak: number;
   bullseyes?: number;
   won?: boolean;
+  /**
+   * Identificativo stabile della partita (idempotenza). Se lo stesso
+   * sessionId viene registrato due volte (doppio render, retry di rete)
+   * la seconda chiamata non modifica nulla, né in locale né sul server.
+   */
+  sessionId?: string;
+  /** Solo per i test: permette di verificare streak/storico a date diverse. */
+  endedAt?: string;
 }
+
+export interface RecordGameOutcome {
+  player: LocalPlayerState;
+  /** XP totali accreditati (partita + nuovi obiettivi locali). */
+  xpEarned: number;
+  /** XP dalla sola partita, secondo le regole documentate (XP_RULES). */
+  gameXp: number;
+  /** XP dai nuovi obiettivi sbloccati con questa partita. */
+  achievementXp: number;
+  newlyUnlocked: AchievementDef[];
+  synced: boolean;
+  /** True se la partita era già stata registrata (niente doppia ricompensa). */
+  duplicate: boolean;
+}
+
+export interface HistoryEntry {
+  mode: string;
+  difficulty: string | null;
+  score: number;
+  rounds: number;
+  correct: number;
+  xpEarned: number | null;
+  won: boolean;
+  isMultiplayer: boolean;
+  endedAt: string;
+  source: "cloud" | "local";
+}
+
+export interface FriendInfo {
+  userId: string;
+  username: string;
+  avatarId: string;
+  level: number;
+}
+
+export interface CloudProgression {
+  profile: LocalPlayerState;
+  achievements: { id: string; xpAwarded: number; unlockedAt: string }[];
+  modeStats: {
+    mode: string;
+    games: number;
+    wins: number;
+    totalScore: number;
+    bestScore: number;
+    rounds: number;
+    correct: number;
+  }[];
+  recentSessions: HistoryEntry[];
+}
+
+// ============================================================
+// Costanti e stato iniziale
+// ============================================================
 
 const PLAYER_STORAGE_KEY = "mondogioco:player:v1";
 const SESSIONS_STORAGE_KEY = "mondogioco:sessions:v1";
+
+export const AUTH_NOT_CONFIGURED_MESSAGE =
+  "Account cloud non disponibile: Supabase non è configurato su questo sito. Puoi continuare a giocare: i progressi restano salvati su questo dispositivo.";
+
+export const NETWORK_ERROR_MESSAGE =
+  "Connessione a Supabase non riuscita (offline o rete lenta). I progressi locali sono salvi: riprova quando sei online.";
 
 export const INITIAL_PLAYER_STATE: LocalPlayerState = {
   playerId: "00000000-0000-4000-8000-000000000000",
@@ -65,108 +207,36 @@ export const INITIAL_PLAYER_STATE: LocalPlayerState = {
   bestStreak: 0,
   bullseyes: 0,
   xp: 0,
+  avatarId: DEFAULT_AVATAR_ID,
+  totalRounds: 0,
+  totalCorrect: 0,
+  bestScore: 0,
+  dailyStreak: 0,
+  longestDailyStreak: 0,
+  lastPlayedOn: null,
+  unlockedAchievements: [],
+  settings: { ...DEFAULT_USER_SETTINGS },
 };
 
-export const INITIAL_LEADERBOARD_ROWS: LeaderboardRow[] = [
-  {
-    rank: 1,
-    playerId: "00000000-0000-4000-8000-000000000101",
-    username: "GeoMaster_MI",
-    totalScore: 48250,
-    gamesPlayed: 14,
-    level: 8,
-    isCurrentPlayer: false,
-  },
-  {
-    rank: 2,
-    playerId: "00000000-0000-4000-8000-000000000102",
-    username: "Marco Polo",
-    totalScore: 39600,
-    gamesPlayed: 11,
-    level: 7,
-    isCurrentPlayer: false,
-  },
-  {
-    rank: 3,
-    playerId: "00000000-0000-4000-8000-000000000103",
-    username: "Elena_Navigatrice",
-    totalScore: 31840,
-    gamesPlayed: 9,
-    level: 6,
-    isCurrentPlayer: false,
-  },
-  {
-    rank: 4,
-    playerId: "00000000-0000-4000-8000-000000000104",
-    username: "AtlanteNord",
-    totalScore: 24190,
-    gamesPlayed: 7,
-    level: 5,
-    isCurrentPlayer: false,
-  },
-  {
-    rank: 5,
-    playerId: "00000000-0000-4000-8000-000000000105",
-    username: "BussolaSud",
-    totalScore: 17520,
-    gamesPlayed: 5,
-    level: 4,
-    isCurrentPlayer: false,
-  },
-];
+/**
+ * Nessun giocatore di esempio: la classifica parte vuota e viene riempita
+ * solo da dati reali (cloud o storico locale del giocatore corrente).
+ */
+export const INITIAL_LEADERBOARD_ROWS: LeaderboardRow[] = [];
 
-const SEED_ENTRIES: Omit<LeaderboardRow, "rank" | "isCurrentPlayer">[] = [
-  {
-    playerId: "00000000-0000-4000-8000-000000000101",
-    username: "GeoMaster_MI",
-    totalScore: 48250,
-    gamesPlayed: 14,
-    level: 8,
-  },
-  {
-    playerId: "00000000-0000-4000-8000-000000000102",
-    username: "Marco Polo",
-    totalScore: 39600,
-    gamesPlayed: 11,
-    level: 7,
-  },
-  {
-    playerId: "00000000-0000-4000-8000-000000000103",
-    username: "Elena_Navigatrice",
-    totalScore: 31840,
-    gamesPlayed: 9,
-    level: 6,
-  },
-  {
-    playerId: "00000000-0000-4000-8000-000000000104",
-    username: "AtlanteNord",
-    totalScore: 24190,
-    gamesPlayed: 7,
-    level: 5,
-  },
-  {
-    playerId: "00000000-0000-4000-8000-000000000105",
-    username: "BussolaSud",
-    totalScore: 17520,
-    gamesPlayed: 5,
-    level: 4,
-  },
-];
+// ============================================================
+// Persistenza locale (con migrazione trasparente v1 → v2)
+// ============================================================
 
 function createDefaultPlayer(): LocalPlayerState {
   const id = v4FallbackId();
   const suffix = id.replace(/-/g, "").slice(0, 4).toUpperCase();
   return {
+    ...INITIAL_PLAYER_STATE,
     playerId: id,
-    authUserId: null,
     username: `Esploratore_${suffix}`,
-    email: null,
-    totalScore: 0,
-    gamesPlayed: 0,
-    gamesWon: 0,
-    bestStreak: 0,
-    bullseyes: 0,
-    xp: 0,
+    settings: { ...DEFAULT_USER_SETTINGS },
+    unlockedAchievements: [],
   };
 }
 
@@ -179,6 +249,8 @@ export function loadLocalPlayer(): LocalPlayerState {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<LocalPlayerState>;
       if (parsed.playerId && parsed.username) {
+        const sessions = loadLocalSessions();
+        const derived = deriveStats(sessions.map(sessionToStatInput));
         return {
           playerId: parsed.playerId,
           authUserId: parsed.authUserId ?? null,
@@ -190,6 +262,18 @@ export function loadLocalPlayer(): LocalPlayerState {
           bestStreak: Number(parsed.bestStreak ?? 0),
           bullseyes: Number(parsed.bullseyes ?? 0),
           xp: Number(parsed.xp ?? 0),
+          avatarId: typeof parsed.avatarId === "string" ? parsed.avatarId : DEFAULT_AVATAR_ID,
+          // Profili v1: ricostruisci gli aggregati nuovi dallo storico reale.
+          totalRounds: Number(parsed.totalRounds ?? derived.totalRounds),
+          totalCorrect: Number(parsed.totalCorrect ?? derived.totalCorrect),
+          bestScore: Number(parsed.bestScore ?? derived.bestScore),
+          dailyStreak: Number(parsed.dailyStreak ?? 0),
+          longestDailyStreak: Number(parsed.longestDailyStreak ?? 0),
+          lastPlayedOn: typeof parsed.lastPlayedOn === "string" ? parsed.lastPlayedOn : null,
+          unlockedAchievements: Array.isArray(parsed.unlockedAchievements)
+            ? parsed.unlockedAchievements.filter((id): id is string => typeof id === "string")
+            : [],
+          settings: normalizeUserSettings(parsed.settings),
         };
       }
     }
@@ -233,21 +317,187 @@ function appendLocalSession(entry: LocalSessionEntry): void {
   }
 }
 
+export function sessionToStatInput(session: LocalSessionEntry): SessionStatInput {
+  return {
+    mode: session.quizType,
+    score: session.totalScore,
+    rounds: session.questionsAnswered,
+    correct: session.correctAnswers,
+    endedAt: session.endedAt,
+    won: session.won,
+  };
+}
+
+/**
+ * Statistiche di progressione correnti del giocatore locale, nella forma
+ * usata da obiettivi, record e grafici. I contatori multiplayer derivano
+ * dallo storico (in locale di solito assenti: le partite online vengono
+ * registrate dal server e rientrano via `fetchMyProgression`).
+ */
+export function progressionStatsOf(player: LocalPlayerState): ProgressionStats {
+  const derived = deriveStats(loadLocalSessions().map(sessionToStatInput));
+  return {
+    ...EMPTY_PROGRESSION_STATS,
+    gamesPlayed: player.gamesPlayed,
+    gamesWon: player.gamesWon,
+    totalScore: player.totalScore,
+    bullseyes: player.bullseyes,
+    bestStreak: player.bestStreak,
+    bestScore: Math.max(player.bestScore, derived.bestScore),
+    totalRounds: Math.max(player.totalRounds, derived.totalRounds),
+    totalCorrect: Math.max(player.totalCorrect, derived.totalCorrect),
+    multiplayerGames: derived.multiplayerGames,
+    multiplayerWins: derived.multiplayerWins,
+    longestDailyStreak: player.longestDailyStreak,
+  };
+}
+
+// ============================================================
+// XP (regole in lib/game/progression.ts, qui ri-esportate per compatibilità)
+// ============================================================
+
 export function computeXpGain(input: GameResultInput): number {
-  if (input.roundsPlayed <= 0) return 0;
-  const fromScore = Math.round(input.score / 12);
-  const fromBullseyes = (input.bullseyes ?? 0) * 40;
-  const fromRounds = input.roundsPlayed * 15;
-  const winBonus = input.won ? 75 : 0;
-  return Math.max(25, fromScore + fromBullseyes + fromRounds + winBonus);
+  return computeGameXp(input);
+}
+
+// ============================================================
+// Mappatura errori Supabase Auth → messaggi comprensibili in italiano
+// ============================================================
+
+export function describeAuthError(rawMessage: string | null | undefined): string {
+  const message = (rawMessage ?? "").trim();
+  if (!message) return "Operazione non riuscita. Riprova tra poco.";
+  if (/modalità offline|offline|failed to fetch|network|abort/i.test(message)) {
+    return NETWORK_ERROR_MESSAGE;
+  }
+  if (/MG401/.test(message)) return "Devi accedere con il tuo account per continuare.";
+  if (/MG409:username_taken/.test(message)) return "Nickname già in uso: scegline un altro.";
+  if (/MG400:invalid_username/.test(message)) {
+    return "Il nome deve avere 3-20 caratteri: lettere, numeri, spazi, trattini o underscore.";
+  }
+  if (/MG400:invalid_avatar/.test(message)) return "Avatar non valido.";
+  if (/MG403:avatar_locked/.test(message)) return "Questo avatar si sblocca salendo di livello.";
+  if (/MG400:invalid_settings/.test(message)) return "Impostazioni non valide.";
+  if (/MG404:friend_not_found/.test(message)) return "Nessun giocatore con questo nickname.";
+  if (/MG400:cannot_friend_self/.test(message)) return "Non puoi aggiungere te stesso agli amici.";
+  if (/MG429/.test(message))
+    return "Troppe richieste in poco tempo. Attendi qualche secondo e riprova.";
+  if (/does not exist|not found in the schema cache|could not find the function/i.test(message)) {
+    return "Funzione non ancora disponibile sul server: il database non ha ancora le migrazioni più recenti (vedi docs/SUPABASE_SETUP.md). I dati locali restano validi.";
+  }
+  if (/invalid login credentials/i.test(message)) {
+    return "Email o password non corrette. Controlla i dati o usa «Password dimenticata».";
+  }
+  if (/user already registered|already.*regist/i.test(message)) {
+    return "Esiste già un account con questa email: prova ad accedere.";
+  }
+  if (/email not confirmed/i.test(message)) {
+    return "Email non ancora confermata: apri il link ricevuto via email, poi accedi.";
+  }
+  if (/password.*(weak|short|least)/i.test(message)) {
+    return "Password troppo debole: usa almeno 6 caratteri (meglio 10+ con numeri e simboli).";
+  }
+  if (/same password/i.test(message))
+    return "La nuova password deve essere diversa dalla precedente.";
+  if (/invalid.*email/i.test(message)) return "Indirizzo email non valido.";
+  if (/rate limit|too many/i.test(message)) {
+    return "Troppi tentativi: attendi qualche minuto prima di riprovare.";
+  }
+  if (/session missing|auth session/i.test(message)) {
+    return "Sessione non valida o link scaduto: richiedi una nuova email di recupero.";
+  }
+  return message;
+}
+
+function mapRpcError(message: string | null | undefined): string {
+  return describeAuthError(message);
+}
+
+// ============================================================
+// Profilo cloud: parsing e merge
+// ============================================================
+
+interface CloudProfileShape {
+  username?: string;
+  email?: string;
+  avatar_id?: string;
+  total_score?: number;
+  games_played?: number;
+  games_won?: number;
+  best_streak?: number;
+  bullseyes?: number;
+  xp?: number;
+  total_rounds?: number;
+  total_correct?: number;
+  best_score?: number;
+  daily_streak?: number;
+  longest_daily_streak?: number;
+  last_played_on?: string | null;
+  settings?: unknown;
+  unlocked_achievements?: string[];
+}
+
+function asCloudProfile(data: unknown): CloudProfileShape | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  return data as CloudProfileShape;
+}
+
+/**
+ * Unisce il profilo cloud a quello locale. Strategia documentata: per i
+ * contatori cumulativi vince il valore maggiore (un dispositivo offline
+ * non può "abbassare" i progressi), mentre nickname/avatar/impostazioni
+ * arrivano dal server se presenti. Gli obiettivi si uniscono (mai persi).
+ */
+function hasSettingsKeys(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const keys = Object.keys(raw);
+  return keys.some((k) =>
+    ["reduceMotion", "globeAutoRotate", "reduce_motion", "globe_auto_rotate"].includes(k)
+  );
+}
+
+function mergeCloudProfile(
+  local: LocalPlayerState,
+  cloud: CloudProfileShape | null,
+  authUserId: string,
+  email: string | null
+): LocalPlayerState {
+  const unlocked = new Set(local.unlockedAchievements);
+  for (const id of cloud?.unlocked_achievements ?? []) unlocked.add(id);
+  return {
+    ...local,
+    authUserId,
+    username: cloud?.username || local.username,
+    email: email ?? cloud?.email ?? local.email,
+    avatarId: cloud?.avatar_id || local.avatarId,
+    totalScore: Math.max(local.totalScore, Number(cloud?.total_score ?? 0)),
+    gamesPlayed: Math.max(local.gamesPlayed, Number(cloud?.games_played ?? 0)),
+    gamesWon: Math.max(local.gamesWon, Number(cloud?.games_won ?? 0)),
+    bestStreak: Math.max(local.bestStreak, Number(cloud?.best_streak ?? 0)),
+    bullseyes: Math.max(local.bullseyes, Number(cloud?.bullseyes ?? 0)),
+    xp: Math.max(local.xp, Number(cloud?.xp ?? 0)),
+    totalRounds: Math.max(local.totalRounds, Number(cloud?.total_rounds ?? 0)),
+    totalCorrect: Math.max(local.totalCorrect, Number(cloud?.total_correct ?? 0)),
+    bestScore: Math.max(local.bestScore, Number(cloud?.best_score ?? 0)),
+    dailyStreak: Math.max(local.dailyStreak, Number(cloud?.daily_streak ?? 0)),
+    longestDailyStreak: Math.max(
+      local.longestDailyStreak,
+      Number(cloud?.longest_daily_streak ?? 0)
+    ),
+    lastPlayedOn: cloud?.last_played_on ?? local.lastPlayedOn,
+    // Le impostazioni cloud vincono solo se contengono davvero delle chiavi:
+    // il default del DB è '{}' e non deve cancellare le scelte locali.
+    settings: hasSettingsKeys(cloud?.settings)
+      ? normalizeUserSettings(cloud?.settings)
+      : local.settings,
+    unlockedAchievements: Array.from(unlocked),
+  };
 }
 
 /**
  * Sincronizza il nickname del giocatore autenticato su Supabase.
- *
- * I punteggi NON vengono più inviati come totali assoluti: passano dalla RPC
- * `record_solo_game`, che valida e limita gli incrementi lato server.
- * I giocatori ospiti restano solo locali (nessun finto salvataggio cloud).
+ * I punteggi NON vengono mai inviati come totali assoluti: passano dalla
+ * RPC `record_solo_game`, che valida e limita gli incrementi lato server.
  */
 export async function syncPlayerToCloud(player: LocalPlayerState): Promise<boolean> {
   if (!isSupabaseConfigured || !player.authUserId) return false;
@@ -259,9 +509,8 @@ export async function syncPlayerToCloud(player: LocalPlayerState): Promise<boole
 
     const { data: profile, error: profileError } = await supabase.rpc("get_my_profile");
     if (profileError) return false;
-    if (profile && typeof profile === "object" && !Array.isArray(profile)) {
-      if ((profile as { username?: string }).username === player.username) return true;
-    }
+    const cloud = asCloudProfile(profile);
+    if (cloud?.username === player.username) return true;
 
     const { error } = await supabase.rpc("set_username", { p_username: player.username });
     return !error;
@@ -270,65 +519,138 @@ export async function syncPlayerToCloud(player: LocalPlayerState): Promise<boole
   }
 }
 
-/**
- * Registra il risultato di una partita sia in locale sia su Supabase.
- */
-export async function recordGameResult(
-  input: GameResultInput
-): Promise<{ player: LocalPlayerState; xpEarned: number; synced: boolean }> {
+// ============================================================
+// Registrazione partita: locale immediato + server autorevole
+// ============================================================
+
+export async function recordGameResult(input: GameResultInput): Promise<RecordGameOutcome> {
   const prev = loadLocalPlayer();
-  if (input.roundsPlayed <= 0) {
-    return { player: prev, xpEarned: 0, synced: false };
+  const empty: RecordGameOutcome = {
+    player: prev,
+    xpEarned: 0,
+    gameXp: 0,
+    achievementXp: 0,
+    newlyUnlocked: [],
+    synced: false,
+    duplicate: false,
+  };
+  if (input.roundsPlayed <= 0) return empty;
+
+  const sessionId = input.sessionId ?? v4FallbackId();
+  // Idempotenza locale: stessa partita già nello storico → nessun doppio XP.
+  if (input.sessionId && loadLocalSessions().some((s) => s.id === sessionId)) {
+    return { ...empty, duplicate: true };
   }
 
-  const xpEarned = computeXpGain(input);
-  const next: LocalPlayerState = {
+  const endedAt = input.endedAt ?? new Date().toISOString();
+  const todayKey = localDateKey(new Date(endedAt));
+  const score = Math.max(0, Math.round(input.score));
+  const gameXp = computeGameXp(input);
+
+  const dailyStreak = nextDailyStreak(prev.lastPlayedOn, prev.dailyStreak, todayKey);
+  let next: LocalPlayerState = {
     ...prev,
-    totalScore: prev.totalScore + Math.max(0, Math.round(input.score)),
+    totalScore: prev.totalScore + score,
     gamesPlayed: prev.gamesPlayed + 1,
     gamesWon: prev.gamesWon + (input.won ? 1 : 0),
     bestStreak: Math.max(prev.bestStreak, input.bestStreak),
     bullseyes: prev.bullseyes + (input.bullseyes ?? 0),
-    xp: prev.xp + xpEarned,
+    totalRounds: prev.totalRounds + input.roundsPlayed,
+    totalCorrect: prev.totalCorrect + Math.min(input.goodRounds, input.roundsPlayed),
+    bestScore: Math.max(prev.bestScore, score),
+    dailyStreak,
+    longestDailyStreak: Math.max(prev.longestDailyStreak, dailyStreak),
+    lastPlayedOn: todayKey,
+    xp: prev.xp + gameXp,
   };
+
+  // Obiettivi: valutati sullo stato aggiornato, accreditati una sola volta.
+  const stats = progressionStatsOf(next);
+  const { newlyUnlocked, xpAwarded } = evaluateAchievements(stats, next.unlockedAchievements);
+  if (newlyUnlocked.length > 0) {
+    next = {
+      ...next,
+      xp: next.xp + xpAwarded,
+      unlockedAchievements: [...next.unlockedAchievements, ...newlyUnlocked.map((a) => a.id)],
+    };
+  }
   saveLocalPlayer(next);
 
-  const endedAt = new Date().toISOString();
   const sessionEntry: LocalSessionEntry = {
-    id: v4FallbackId(),
+    id: sessionId,
     playerId: next.playerId,
     username: next.username,
     quizType: input.mode,
     difficulty: input.difficulty ?? "medium",
-    totalScore: Math.max(0, Math.round(input.score)),
+    totalScore: score,
     questionsAnswered: input.roundsPlayed,
     correctAnswers: input.goodRounds,
     endedAt,
+    xpEarned: gameXp,
+    won: Boolean(input.won),
+    bullseyes: input.bullseyes ?? 0,
   };
   appendLocalSession(sessionEntry);
 
-  if (!isSupabaseConfigured || !next.authUserId) {
-    return { player: next, xpEarned, synced: false };
-  }
+  const outcome: RecordGameOutcome = {
+    player: next,
+    xpEarned: gameXp + xpAwarded,
+    gameXp,
+    achievementXp: xpAwarded,
+    newlyUnlocked,
+    synced: false,
+    duplicate: false,
+  };
+
+  if (!isSupabaseConfigured || !next.authUserId) return outcome;
 
   try {
     const supabase = getBrowserClient();
-    if (!supabase) return { player: next, xpEarned, synced: false };
+    if (!supabase) return outcome;
     const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) return { player: next, xpEarned, synced: false };
+    if (!sessionData.session) return outcome;
 
-    // Il server valida punteggio, round, risposte corrette e XP.
-    const { error } = await supabase.rpc("record_solo_game", {
+    // Il server valida punteggio/round/XP e accredita da sé gli obiettivi.
+    // Al server inviamo SOLO gli XP di partita (gameXp): sommare anche gli
+    // XP obiettivo locali li duplicherebbe, perché li assegna il database.
+    const baseArgs = {
       p_mode: sessionEntry.quizType,
       p_difficulty: sessionEntry.difficulty,
       p_score: sessionEntry.totalScore,
       p_rounds: sessionEntry.questionsAnswered,
       p_correct: sessionEntry.correctAnswers,
-      p_xp: xpEarned,
+      p_xp: gameXp,
+    };
+    let { data, error } = await supabase.rpc("record_solo_game", {
+      ...baseArgs,
+      p_session_key: sessionId,
+      p_bullseyes: input.bullseyes ?? 0,
+      p_best_streak: input.bestStreak,
+      p_won: Boolean(input.won),
     });
-    return { player: next, xpEarned, synced: !error };
+    if (error) {
+      // Deploy progressivo: database ancora alla migrazione 002-004.
+      // Riprova con la vecchia firma a 6 argomenti (senza idempotenza).
+      const retry = await supabase.rpc("record_solo_game", baseArgs);
+      data = retry.data;
+      error = retry.error;
+    }
+    if (error) return outcome;
+
+    const cloud = asCloudProfile(data);
+    if (cloud && sessionData.session.user) {
+      const merged = mergeCloudProfile(
+        loadLocalPlayer(),
+        cloud,
+        sessionData.session.user.id,
+        sessionData.session.user.email ?? null
+      );
+      saveLocalPlayer(merged);
+      return { ...outcome, player: merged, synced: true };
+    }
+    return { ...outcome, synced: true };
   } catch {
-    return { player: next, xpEarned, synced: false };
+    return outcome;
   }
 }
 
@@ -345,40 +667,229 @@ export async function renamePlayer(
       error: "Il nome deve avere 3-20 caratteri: lettere, numeri, spazi, trattini o underscore.",
     };
   }
-  const updated: LocalPlayerState = {
-    ...loadLocalPlayer(),
-    username: cleaned,
-  };
-  saveLocalPlayer(updated);
-  if (updated.gamesPlayed > 0 || updated.authUserId) {
-    await syncPlayerToCloud(updated);
+  const current = loadLocalPlayer();
+  const updated: LocalPlayerState = { ...current, username: cleaned };
+
+  if (updated.authUserId && isSupabaseConfigured) {
+    // Sul cloud il nickname è unico: se il server lo rifiuta non fingiamo
+    // il salvataggio, così locale e classifiche restano coerenti.
+    try {
+      const supabase = getBrowserClient();
+      const { data: sessionData } = (await supabase?.auth.getSession()) ?? {
+        data: { session: null },
+      };
+      if (supabase && sessionData.session) {
+        const { data, error } = await supabase.rpc("set_username", { p_username: cleaned });
+        if (error) {
+          return { ok: false, player: current, error: mapRpcError(error.message) };
+        }
+        const merged = mergeCloudProfile(
+          updated,
+          asCloudProfile(data),
+          sessionData.session.user.id,
+          sessionData.session.user.email ?? null
+        );
+        saveLocalPlayer(merged);
+        return { ok: true, player: merged };
+      }
+    } catch {
+      return { ok: false, player: current, error: NETWORK_ERROR_MESSAGE };
+    }
   }
+
+  saveLocalPlayer(updated);
   return { ok: true, player: updated };
 }
 
+// ============================================================
+// Avatar e impostazioni
+// ============================================================
+
+export async function setAvatar(
+  avatarId: string
+): Promise<{ ok: boolean; player: LocalPlayerState; synced: boolean; error?: string }> {
+  const current = loadLocalPlayer();
+  const avatar = getAvatar(avatarId);
+  if (avatar.id !== avatarId) {
+    return { ok: false, player: current, synced: false, error: "Avatar non valido." };
+  }
+  const level = calculateLevel(current.xp).level;
+  if (!isAvatarUnlocked(avatarId, level)) {
+    return {
+      ok: false,
+      player: current,
+      synced: false,
+      error: `L'avatar ${avatar.label} si sblocca al livello ${avatar.unlockLevel} (sei al ${level}).`,
+    };
+  }
+
+  const updated: LocalPlayerState = { ...current, avatarId };
+  saveLocalPlayer(updated);
+
+  if (!updated.authUserId || !isSupabaseConfigured) {
+    return { ok: true, player: updated, synced: false };
+  }
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: true, player: updated, synced: false };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return { ok: true, player: updated, synced: false };
+    const { error } = await supabase.rpc("set_avatar", { p_avatar_id: avatarId });
+    if (error) {
+      return {
+        ok: true,
+        player: updated,
+        synced: false,
+        error: `Avatar salvato sul dispositivo; sincronizzazione cloud non riuscita (${mapRpcError(error.message)}).`,
+      };
+    }
+    return { ok: true, player: updated, synced: true };
+  } catch {
+    return { ok: true, player: updated, synced: false, error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+export async function updateSettings(
+  patch: Partial<UserSettings>
+): Promise<{ ok: boolean; player: LocalPlayerState; synced: boolean; error?: string }> {
+  const current = loadLocalPlayer();
+  const settings = normalizeUserSettings({ ...current.settings, ...patch });
+  const updated: LocalPlayerState = { ...current, settings };
+  saveLocalPlayer(updated);
+  if (typeof window !== "undefined") {
+    document.documentElement.dataset.reduceMotion = settings.reduceMotion ? "true" : "false";
+  }
+
+  if (!updated.authUserId || !isSupabaseConfigured) {
+    return { ok: true, player: updated, synced: false };
+  }
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: true, player: updated, synced: false };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return { ok: true, player: updated, synced: false };
+    const { error } = await supabase.rpc("set_my_settings", {
+      p_settings: userSettingsToDb(settings),
+    });
+    return { ok: true, player: updated, synced: !error };
+  } catch {
+    return { ok: true, player: updated, synced: false };
+  }
+}
+
+// ============================================================
+// Classifiche
+// ============================================================
+
+type RankableEntry = Omit<LeaderboardRow, "rank" | "isCurrentPlayer">;
+
 function rankEntries(
-  items: Omit<LeaderboardRow, "rank" | "isCurrentPlayer">[],
-  currentPlayerId: string
+  items: RankableEntry[],
+  currentPlayerId: string,
+  authUserId: string | null
 ): LeaderboardRow[] {
-  return [...items]
-    .sort((a, b) => b.totalScore - a.totalScore)
-    .slice(0, 20)
-    .map((item, idx) => ({
+  const sorted = [...items].sort(compareLeaderboardEntries);
+  return assignRanks(sorted)
+    .slice(0, 50)
+    .map((item) => ({
       ...item,
-      rank: idx + 1,
-      isCurrentPlayer: item.playerId === currentPlayerId,
+      isCurrentPlayer:
+        item.playerId === currentPlayerId || (authUserId !== null && item.playerId === authUserId),
     }));
 }
 
+/** Aggrega lo storico locale nella finestra richiesta (dati reali del solo giocatore corrente). */
+function localLeaderboardEntries(range: TimeRange): RankableEntry[] {
+  const me = loadLocalPlayer();
+  if (me.gamesPlayed <= 0) return [];
+
+  if (range === "all") {
+    return [
+      {
+        playerId: me.playerId,
+        username: me.username,
+        totalScore: me.totalScore,
+        gamesPlayed: me.gamesPlayed,
+        level: calculateLevel(me.xp).level,
+        avatarId: me.avatarId,
+      },
+    ];
+  }
+
+  const days = range === "week" ? 7 : 30;
+  const cutoff = Date.now() - days * 24 * 3600_000;
+  const recent = loadLocalSessions().filter((s) => new Date(s.endedAt).getTime() >= cutoff);
+  if (recent.length === 0) return [];
+  return [
+    {
+      playerId: me.playerId,
+      username: me.username,
+      totalScore: recent.reduce((sum, s) => sum + s.totalScore, 0),
+      gamesPlayed: recent.length,
+      level: calculateLevel(me.xp).level,
+      avatarId: me.avatarId,
+    },
+  ];
+}
+
 /**
- * Carica la classifica reale tramite la RPC `get_leaderboard`
- * (che espone solo aggregati pubblici, mai email o dati privati) e ripiega
- * in modo trasparente sui dati locali quando si è offline o non configurati.
+ * Carica una classifica.
+ * - Globale: RPC `get_leaderboard` (solo aggregati pubblici, mai email);
+ *   senza cloud/rete ripiega sullo storico locale del giocatore corrente.
+ * - Amici: richiede account cloud autenticato; altrimenti stato esplicito
+ *   `unavailable` (mai dati inventati).
+ * Nuovi utenti: compaiono dopo la prima partita registrata. Pareggi:
+ * stessa posizione a pari punti (vedi assignRanks/compareLeaderboardEntries).
  */
 export async function fetchLeaderboard(
-  range: TimeRange
-): Promise<{ entries: LeaderboardRow[]; source: "cloud" | "local" }> {
+  range: TimeRange,
+  scope: LeaderboardScope = "global"
+): Promise<LeaderboardResult> {
   const me = loadLocalPlayer();
+
+  if (scope === "friends") {
+    if (!isSupabaseConfigured) {
+      return {
+        entries: [],
+        source: "unavailable",
+        notice:
+          "La classifica amici richiede il cloud, ma Supabase non è configurato su questo sito.",
+      };
+    }
+    try {
+      const supabase = getBrowserClient();
+      if (!supabase) throw new Error("no-client");
+      // Fonte di verità sull'autenticazione: la sessione Supabase reale,
+      // non la copia locale dell'id (potrebbe non essere ancora allineata).
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        return {
+          entries: [],
+          source: "unavailable",
+          notice: "Accedi con il tuo account per vedere la classifica dei tuoi amici.",
+        };
+      }
+      const authUserId = sessionData.session.user.id;
+      const { data, error } = await supabase.rpc("get_friends_leaderboard", { p_range: range });
+      if (error) throw error;
+      const entries: RankableEntry[] = (data ?? []).map((row) => ({
+        playerId: row.user_id,
+        username: row.username,
+        totalScore: Number(row.total_score),
+        gamesPlayed: Number(row.games_played),
+        level: Number(row.level),
+        avatarId: row.avatar_id ?? DEFAULT_AVATAR_ID,
+      }));
+      return { entries: rankEntries(entries, me.playerId, authUserId), source: "cloud" };
+    } catch (err) {
+      const raw = err && typeof err === "object" && "message" in err ? String(err.message) : "";
+      return {
+        entries: [],
+        source: "unavailable",
+        notice: raw ? describeAuthError(raw) : NETWORK_ERROR_MESSAGE,
+      };
+    }
+  }
 
   if (isSupabaseConfigured) {
     try {
@@ -386,8 +897,8 @@ export async function fetchLeaderboard(
       if (!supabase) throw new Error("no-client");
       const { data, error } = await supabase.rpc("get_leaderboard", { p_range: range });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const byId = new Map<string, Omit<LeaderboardRow, "rank" | "isCurrentPlayer">>();
+      if (!error && Array.isArray(data)) {
+        const byId = new Map<string, RankableEntry>();
         for (const row of data) {
           byId.set(row.user_id, {
             playerId: row.user_id,
@@ -395,22 +906,23 @@ export async function fetchLeaderboard(
             totalScore: Number(row.total_score),
             gamesPlayed: Number(row.games_played),
             level: Number(row.level),
+            avatarId: row.avatar_id ?? DEFAULT_AVATAR_ID,
           });
         }
-        if (range === "all" && me.gamesPlayed > 0) {
-          const existing = byId.get(me.playerId);
-          if (!existing || me.totalScore >= existing.totalScore) {
-            byId.set(me.playerId, {
-              playerId: me.playerId,
-              username: me.username,
-              totalScore: me.totalScore,
-              gamesPlayed: me.gamesPlayed,
-              level: calculateLevel(me.xp).level,
-            });
-          }
+        // Il giocatore locale non ancora sincronizzato compare con i SUOI
+        // dati reali del dispositivo (nessun altro dato inventato).
+        if (range === "all" && me.gamesPlayed > 0 && !me.authUserId) {
+          byId.set(me.playerId, {
+            playerId: me.playerId,
+            username: me.username,
+            totalScore: me.totalScore,
+            gamesPlayed: me.gamesPlayed,
+            level: calculateLevel(me.xp).level,
+            avatarId: me.avatarId,
+          });
         }
         return {
-          entries: rankEntries(Array.from(byId.values()), me.playerId),
+          entries: rankEntries(Array.from(byId.values()), me.playerId, me.authUserId),
           source: "cloud",
         };
       }
@@ -419,26 +931,237 @@ export async function fetchLeaderboard(
     }
   }
 
-  const fallback = [...SEED_ENTRIES];
-  if (me.gamesPlayed > 0) {
-    fallback.push({
-      playerId: me.playerId,
-      username: me.username,
-      totalScore: me.totalScore,
-      gamesPlayed: me.gamesPlayed,
-      level: calculateLevel(me.xp).level,
-    });
-  }
   return {
-    entries: rankEntries(fallback, me.playerId),
+    entries: rankEntries(localLeaderboardEntries(range), me.playerId, me.authUserId),
     source: "local",
   };
 }
 
+// ============================================================
+// Amici
+// ============================================================
+
+export async function fetchFriends(): Promise<{ friends: FriendInfo[]; error?: string }> {
+  if (!isSupabaseConfigured) return { friends: [], error: AUTH_NOT_CONFIGURED_MESSAGE };
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { friends: [], error: AUTH_NOT_CONFIGURED_MESSAGE };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      return { friends: [], error: "Accedi con il tuo account per gestire gli amici." };
+    }
+    const { data, error } = await supabase.rpc("list_friends");
+    if (error) return { friends: [], error: mapRpcError(error.message) };
+    return {
+      friends: (data ?? []).map((row) => ({
+        userId: row.user_id,
+        username: row.username,
+        avatarId: row.avatar_id ?? DEFAULT_AVATAR_ID,
+        level: Number(row.level),
+      })),
+    };
+  } catch {
+    return { friends: [], error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+export async function addFriendByUsername(
+  username: string
+): Promise<{ ok: boolean; alreadyFriends?: boolean; friend?: FriendInfo; error?: string }> {
+  const cleaned = username.trim();
+  if (cleaned.length < 3) return { ok: false, error: "Inserisci il nickname esatto dell'amico." };
+  if (!isSupabaseConfigured) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+    const { data, error } = await supabase.rpc("add_friend", { p_username: cleaned });
+    if (error) return { ok: false, error: mapRpcError(error.message) };
+    const payload = data as {
+      already_friends?: boolean;
+      friend?: { user_id: string; username: string; avatar_id?: string; level: number };
+    } | null;
+    return {
+      ok: true,
+      alreadyFriends: Boolean(payload?.already_friends),
+      friend: payload?.friend
+        ? {
+            userId: payload.friend.user_id,
+            username: payload.friend.username,
+            avatarId: payload.friend.avatar_id ?? DEFAULT_AVATAR_ID,
+            level: Number(payload.friend.level),
+          }
+        : undefined,
+    };
+  } catch {
+    return { ok: false, error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+export async function removeFriend(userId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+    const { error } = await supabase.rpc("remove_friend", { p_user_id: userId });
+    if (error) return { ok: false, error: mapRpcError(error.message) };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+// ============================================================
+// Progressione e storico dal server (solo i propri dati)
+// ============================================================
+
 /**
- * Ripristina ed allinea l'eventuale sessione Supabase Auth con il profilo locale.
- * Il profilo pubblico (username, livello) e i dati privati (email, punteggi)
- * arrivano dalla RPC `get_my_profile`, che restituisce solo il proprio profilo.
+ * Scarica la progressione completa dal server e allinea il profilo locale.
+ * Restituisce null quando cloud/account/sessione non sono disponibili:
+ * la UI in quel caso usa (e dichiara) i soli dati locali.
+ */
+export async function fetchMyProgression(): Promise<CloudProgression | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return null;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) return null;
+
+    const { data, error } = await supabase.rpc("get_my_progression");
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) return null;
+    const payload = data as {
+      profile?: unknown;
+      achievements?: { id: string; xp_awarded: number; unlocked_at: string }[];
+      mode_stats?: {
+        mode: string;
+        games: number;
+        wins: number;
+        total_score: number;
+        best_score: number;
+        rounds: number;
+        correct: number;
+      }[];
+      recent_sessions?: {
+        mode: string;
+        difficulty: string | null;
+        score: number;
+        rounds: number;
+        correct: number;
+        xp_earned: number;
+        won: boolean;
+        ended_at: string;
+      }[];
+    };
+
+    const merged = mergeCloudProfile(
+      loadLocalPlayer(),
+      asCloudProfile(payload.profile),
+      user.id,
+      user.email ?? null
+    );
+    saveLocalPlayer(merged);
+
+    return {
+      profile: merged,
+      achievements: (payload.achievements ?? []).map((a) => ({
+        id: a.id,
+        xpAwarded: Number(a.xp_awarded),
+        unlockedAt: a.unlocked_at,
+      })),
+      modeStats: (payload.mode_stats ?? []).map((m) => ({
+        mode: m.mode,
+        games: Number(m.games),
+        wins: Number(m.wins),
+        totalScore: Number(m.total_score),
+        bestScore: Number(m.best_score),
+        rounds: Number(m.rounds),
+        correct: Number(m.correct),
+      })),
+      recentSessions: (payload.recent_sessions ?? []).map((s) => ({
+        mode: s.mode,
+        difficulty: s.difficulty,
+        score: Number(s.score),
+        rounds: Number(s.rounds),
+        correct: Number(s.correct),
+        xpEarned: Number(s.xp_earned),
+        won: Boolean(s.won),
+        isMultiplayer: s.mode.startsWith("multiplayer"),
+        endedAt: s.ended_at,
+        source: "cloud" as const,
+      })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Storico partite da mostrare nel profilo. Con account cloud usa lo
+ * storico del server (include il multiplayer); altrimenti quello locale.
+ * Restituisce anche la sorgente, così la UI può dichiararla onestamente.
+ */
+export async function fetchMyHistory(
+  limit = 20,
+  onlyMultiplayer = false
+): Promise<{ entries: HistoryEntry[]; source: "cloud" | "local" }> {
+  const localEntries = (): HistoryEntry[] =>
+    loadLocalSessions()
+      .filter((s) => !onlyMultiplayer || s.quizType.startsWith("multiplayer"))
+      .slice(0, limit)
+      .map((s) => ({
+        mode: s.quizType,
+        difficulty: s.difficulty,
+        score: s.totalScore,
+        rounds: s.questionsAnswered,
+        correct: s.correctAnswers,
+        xpEarned: s.xpEarned ?? null,
+        won: Boolean(s.won),
+        isMultiplayer: s.quizType.startsWith("multiplayer"),
+        endedAt: s.endedAt,
+        source: "local" as const,
+      }));
+
+  if (!isSupabaseConfigured) return { entries: localEntries(), source: "local" };
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { entries: localEntries(), source: "local" };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return { entries: localEntries(), source: "local" };
+
+    const { data, error } = await supabase.rpc("get_my_history", {
+      p_limit: limit,
+      p_only_multiplayer: onlyMultiplayer,
+    });
+    if (error || !Array.isArray(data)) return { entries: localEntries(), source: "local" };
+    return {
+      entries: data.map((row) => ({
+        mode: row.mode,
+        difficulty: row.difficulty,
+        score: Number(row.score),
+        rounds: Number(row.rounds),
+        correct: Number(row.correct),
+        xpEarned: Number(row.xp_earned),
+        won: Boolean(row.won),
+        isMultiplayer: Boolean(row.is_multiplayer),
+        endedAt: row.ended_at,
+        source: "cloud" as const,
+      })),
+      source: "cloud",
+    };
+  } catch {
+    return { entries: localEntries(), source: "local" };
+  }
+}
+
+// ============================================================
+// Account: sessione, registrazione, login, recupero password, logout
+// ============================================================
+
+/**
+ * Ripristina e allinea l'eventuale sessione Supabase Auth con il profilo
+ * locale. Senza sessione (ospite) restituisce il profilo locale così
+ * com'è: nessun finto login, nessun dato cloud inventato.
  */
 export async function syncAuthSession(): Promise<LocalPlayerState> {
   const local = loadLocalPlayer();
@@ -449,35 +1172,19 @@ export async function syncAuthSession(): Promise<LocalPlayerState> {
     if (!supabase) return local;
     const { data: sessionData } = await supabase.auth.getSession();
     const user = sessionData.session?.user;
-    if (!user) return local;
+    if (!user) {
+      // Sessione scaduta/assente: il profilo locale torna "ospite" ma i
+      // progressi del dispositivo non vengono cancellati.
+      if (local.authUserId || local.email) {
+        const guest: LocalPlayerState = { ...local, authUserId: null, email: null };
+        saveLocalPlayer(guest);
+        return guest;
+      }
+      return local;
+    }
 
     const { data: cloudData } = await supabase.rpc("get_my_profile");
-    const cloud =
-      cloudData && typeof cloudData === "object" && !Array.isArray(cloudData)
-        ? (cloudData as {
-            username?: string;
-            email?: string;
-            total_score?: number;
-            games_played?: number;
-            games_won?: number;
-            best_streak?: number;
-            bullseyes?: number;
-            xp?: number;
-          })
-        : null;
-
-    const merged: LocalPlayerState = {
-      ...local,
-      authUserId: user.id,
-      username: cloud?.username || local.username,
-      email: user.email ?? cloud?.email ?? local.email,
-      totalScore: Math.max(local.totalScore, Number(cloud?.total_score ?? 0)),
-      gamesPlayed: Math.max(local.gamesPlayed, Number(cloud?.games_played ?? 0)),
-      gamesWon: Math.max(local.gamesWon, Number(cloud?.games_won ?? 0)),
-      bestStreak: Math.max(local.bestStreak, Number(cloud?.best_streak ?? 0)),
-      bullseyes: Math.max(local.bullseyes, Number(cloud?.bullseyes ?? 0)),
-      xp: Math.max(local.xp, Number(cloud?.xp ?? 0)),
-    };
+    const merged = mergeCloudProfile(local, asCloudProfile(cloudData), user.id, user.email ?? null);
     saveLocalPlayer(merged);
     return merged;
   } catch {
@@ -485,36 +1192,47 @@ export async function syncAuthSession(): Promise<LocalPlayerState> {
   }
 }
 
+export interface AuthOutcome {
+  ok: boolean;
+  player: LocalPlayerState;
+  mode: "cloud" | "local";
+  /** True quando Supabase richiede la conferma email prima del login. */
+  needsEmailConfirmation?: boolean;
+  error?: string;
+}
+
+function validateEmailPassword(
+  email: string,
+  password: string
+): { ok: true; email: string } | { ok: false; error: string } {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return { ok: false, error: "Inserisci un indirizzo email valido." };
+  }
+  if (password.length < 6) {
+    return { ok: false, error: "La password deve avere almeno 6 caratteri." };
+  }
+  return { ok: true, email: cleanEmail };
+}
+
 export async function signUpWithEmail(
   email: string,
   password: string,
   username?: string
-): Promise<{ ok: boolean; player: LocalPlayerState; mode: "cloud" | "local"; error?: string }> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "Inserisci un indirizzo email valido.",
-    };
+): Promise<AuthOutcome> {
+  const validation = validateEmailPassword(email, password);
+  if (!validation.ok) {
+    return { ok: false, player: loadLocalPlayer(), mode: "local", error: validation.error };
   }
-  if (password.length < 6) {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "La password deve avere almeno 6 caratteri.",
-    };
-  }
+  const cleanEmail = validation.email;
   const desiredName = (username?.trim() || cleanEmail.split("@")[0] || "Esploratore").slice(0, 20);
+
   if (!isSupabaseConfigured) {
     return {
       ok: false,
       player: loadLocalPlayer(),
       mode: "local",
-      error:
-        "Account cloud non disponibile: Supabase non è configurato. Puoi comunque giocare in locale.",
+      error: AUTH_NOT_CONFIGURED_MESSAGE,
     };
   }
 
@@ -524,12 +1242,33 @@ export async function signUpWithEmail(
     const { data, error } = await supabase.auth.signUp({
       email: cleanEmail,
       password,
-      options: { data: { username: desiredName } },
+      options: {
+        data: { username: desiredName },
+        emailRedirectTo:
+          typeof window !== "undefined" ? `${window.location.origin}/auth` : undefined,
+      },
     });
     if (error) {
-      return { ok: false, player: loadLocalPlayer(), mode: "cloud", error: error.message };
+      return {
+        ok: false,
+        player: loadLocalPlayer(),
+        mode: "cloud",
+        error: describeAuthError(error.message),
+      };
     }
+
     const local = loadLocalPlayer();
+    if (!data.session) {
+      // Conferma email attiva sul progetto: l'account esiste ma non c'è
+      // ancora una sessione. Non fingiamo la sincronizzazione cloud.
+      return {
+        ok: true,
+        player: local,
+        mode: "cloud",
+        needsEmailConfirmation: true,
+      };
+    }
+
     const next: LocalPlayerState = {
       ...local,
       authUserId: data.user?.id ?? local.authUserId,
@@ -538,46 +1277,24 @@ export async function signUpWithEmail(
     };
     saveLocalPlayer(next);
     await syncPlayerToCloud(next);
-    return { ok: true, player: next, mode: "cloud" };
+    const synced = await syncAuthSession();
+    return { ok: true, player: synced, mode: "cloud" };
   } catch {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "Connessione a Supabase non riuscita. Riprova quando sei online.",
-    };
+    return { ok: false, player: loadLocalPlayer(), mode: "local", error: NETWORK_ERROR_MESSAGE };
   }
 }
 
-export async function signInWithEmail(
-  email: string,
-  password: string
-): Promise<{ ok: boolean; player: LocalPlayerState; mode: "cloud" | "local"; error?: string }> {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "Inserisci un indirizzo email valido.",
-    };
+export async function signInWithEmail(email: string, password: string): Promise<AuthOutcome> {
+  const validation = validateEmailPassword(email, password);
+  if (!validation.ok) {
+    return { ok: false, player: loadLocalPlayer(), mode: "local", error: validation.error };
   }
-  if (password.length < 6) {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "La password deve avere almeno 6 caratteri.",
-    };
-  }
-
   if (!isSupabaseConfigured) {
     return {
       ok: false,
       player: loadLocalPlayer(),
       mode: "local",
-      error:
-        "Account cloud non disponibile: Supabase non è configurato. Puoi comunque giocare in locale.",
+      error: AUTH_NOT_CONFIGURED_MESSAGE,
     };
   }
 
@@ -585,11 +1302,16 @@ export async function signInWithEmail(
     const supabase = getBrowserClient();
     if (!supabase) throw new Error("SUPABASE_NOT_CONFIGURED");
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
+      email: validation.email,
       password,
     });
     if (error) {
-      return { ok: false, player: loadLocalPlayer(), mode: "cloud", error: error.message };
+      return {
+        ok: false,
+        player: loadLocalPlayer(),
+        mode: "cloud",
+        error: describeAuthError(error.message),
+      };
     }
     const synced = await syncAuthSession();
     return {
@@ -597,17 +1319,80 @@ export async function signInWithEmail(
       player: {
         ...synced,
         authUserId: data.user.id,
-        email: data.user.email ?? cleanEmail,
+        email: data.user.email ?? validation.email,
       },
       mode: "cloud",
     };
   } catch {
-    return {
-      ok: false,
-      player: loadLocalPlayer(),
-      mode: "local",
-      error: "Connessione a Supabase non riuscita. Riprova quando sei online.",
-    };
+    return { ok: false, player: loadLocalPlayer(), mode: "local", error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+/**
+ * Invia l'email di recupero password (Supabase Auth). Per non permettere
+ * l'enumerazione degli account, la UI deve mostrare lo stesso messaggio
+ * di successo sia per email registrate sia non registrate.
+ */
+export async function requestPasswordReset(
+  email: string
+): Promise<{ ok: boolean; error?: string }> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return { ok: false, error: "Inserisci un indirizzo email valido." };
+  }
+  if (!isSupabaseConfigured) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo:
+        typeof window !== "undefined" ? `${window.location.origin}/auth/reset` : undefined,
+    });
+    if (error) {
+      // Errori di rete vengono mostrati; errori "utente non trovato"
+      // vengono normalizzati in successo (anti-enumerazione).
+      if (/offline|failed to fetch|network|abort/i.test(error.message)) {
+        return { ok: false, error: NETWORK_ERROR_MESSAGE };
+      }
+      if (/rate limit|too many/i.test(error.message)) {
+        return { ok: false, error: describeAuthError(error.message) };
+      }
+      return { ok: true };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: NETWORK_ERROR_MESSAGE };
+  }
+}
+
+/**
+ * Imposta la nuova password. Funziona (a) dalla pagina /auth/reset dopo
+ * il click sul link email (sessione di recovery) e (b) per un utente già
+ * loggato che vuole cambiarla dal profilo.
+ */
+export async function updatePassword(
+  newPassword: string
+): Promise<{ ok: boolean; error?: string }> {
+  if (newPassword.length < 6) {
+    return { ok: false, error: "La nuova password deve avere almeno 6 caratteri." };
+  }
+  if (!isSupabaseConfigured) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+  try {
+    const supabase = getBrowserClient();
+    if (!supabase) return { ok: false, error: AUTH_NOT_CONFIGURED_MESSAGE };
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      return {
+        ok: false,
+        error: "Sessione non valida o link scaduto: richiedi una nuova email di recupero.",
+      };
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { ok: false, error: describeAuthError(error.message) };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: NETWORK_ERROR_MESSAGE };
   }
 }
 
@@ -616,7 +1401,7 @@ export async function signOutAccount(): Promise<LocalPlayerState> {
     const supabase = getBrowserClient();
     await supabase?.auth.signOut();
   } catch {
-    // Ignorato se offline.
+    // Ignorato se offline: la sessione locale viene comunque scollegata.
   }
   const current = loadLocalPlayer();
   const next: LocalPlayerState = {
@@ -627,3 +1412,5 @@ export async function signOutAccount(): Promise<LocalPlayerState> {
   saveLocalPlayer(next);
   return next;
 }
+
+export { SUPABASE_SETUP_MESSAGE };

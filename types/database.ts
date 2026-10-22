@@ -17,6 +17,7 @@ export interface Database {
           id: string;
           username: string;
           avatar_url: string | null;
+          avatar_id: string;
           level: number;
           created_at: string;
           updated_at: string;
@@ -25,6 +26,7 @@ export interface Database {
           id: string;
           username: string;
           avatar_url?: string | null;
+          avatar_id?: string;
           level?: number;
           created_at?: string;
           updated_at?: string;
@@ -32,6 +34,7 @@ export interface Database {
         Update: {
           username?: string;
           avatar_url?: string | null;
+          avatar_id?: string;
           level?: number;
           updated_at?: string;
         };
@@ -188,16 +191,75 @@ export interface Database {
           p_rounds: number;
           p_correct: number;
           p_xp: number;
+          p_session_key?: string | null;
+          p_bullseyes?: number;
+          p_best_streak?: number;
+          p_won?: boolean;
         };
         Returns: Json;
+      };
+      set_avatar: {
+        Args: { p_avatar_id: string };
+        Returns: Json;
+      };
+      set_my_settings: {
+        Args: { p_settings: Json };
+        Returns: Json;
+      };
+      get_my_progression: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      get_my_history: {
+        Args: { p_limit?: number; p_only_multiplayer?: boolean };
+        Returns: {
+          mode: string;
+          difficulty: string | null;
+          score: number;
+          rounds: number;
+          correct: number;
+          xp_earned: number;
+          won: boolean;
+          is_multiplayer: boolean;
+          ended_at: string;
+        }[];
       };
       get_leaderboard: {
         Args: { p_range?: string };
         Returns: {
           user_id: string;
           username: string;
+          avatar_id: string;
           total_score: number;
           games_played: number;
+          level: number;
+        }[];
+      };
+      get_friends_leaderboard: {
+        Args: { p_range?: string };
+        Returns: {
+          user_id: string;
+          username: string;
+          avatar_id: string;
+          total_score: number;
+          games_played: number;
+          level: number;
+        }[];
+      };
+      add_friend: {
+        Args: { p_username: string };
+        Returns: Json;
+      };
+      remove_friend: {
+        Args: { p_user_id: string };
+        Returns: Json;
+      };
+      list_friends: {
+        Args: Record<string, never>;
+        Returns: {
+          user_id: string;
+          username: string;
+          avatar_id: string;
           level: number;
         }[];
       };

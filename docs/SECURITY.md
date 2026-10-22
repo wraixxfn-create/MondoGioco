@@ -27,26 +27,28 @@ Gli script di verifica (`scripts/verify-remote.mjs`) usano **solo** la anon key.
 
 ### Pubblici (leggibili anche senza login)
 
-| Dato                                                     | Dove                    | Note                      |
-| -------------------------------------------------------- | ----------------------- | ------------------------- |
-| `profiles.id`                                            | tabella `profiles`      | UUID utente               |
-| `profiles.username`                                      | tabella `profiles`      | univoco, case-insensitive |
-| `profiles.avatar_url`, `profiles.level`, `created_at`    | tabella `profiles`      | profilo pubblico          |
-| Classifica: username, punteggio totale, partite, livello | RPC `get_leaderboard`   | aggregati, nessuna email  |
-| Limiti di gioco                                          | tabella `game_settings` | trasparenza sui limiti    |
+| Dato                                                                        | Dove                                              | Note                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------- |
+| `profiles.id`                                                               | tabella `profiles`                                | UUID utente                                  |
+| `profiles.username`                                                         | tabella `profiles`                                | univoco, case-insensitive                    |
+| `profiles.avatar_url`, `profiles.avatar_id`, `profiles.level`, `created_at` | tabella `profiles`                                | profilo pubblico (avatar da catalogo chiuso) |
+| Classifica: username, avatar, punteggio totale, partite, livello            | RPC `get_leaderboard` / `get_friends_leaderboard` | aggregati, nessuna email                     |
+| Limiti di gioco                                                             | tabella `game_settings`                           | trasparenza sui limiti                       |
 
 ### Privati (solo proprietario o server)
 
-| Dato                          | Dove                                             | Accesso                                                  |
-| ----------------------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| Email                         | `app_private.profile_private.email`              | solo RPC `get_my_profile` (proprietario)                 |
-| Punteggi/XP/vittorie totali   | `app_private.profile_private`                    | proprietario via RPC; aggregati pubblici via leaderboard |
-| Storico partite               | `app_private.profile_sessions`                   | solo server (usato per classifiche periodiche)           |
-| Domande + risposte corrette   | `app_private.question_bank`                      | solo server                                              |
-| Soluzione del round           | `app_private.round_keys`                         | restituita solo dopo la rivelazione                      |
-| Contatori rate limit / policy | `app_private.rate_limits`, `rate_limit_policies` | solo server                                              |
-| Risposte dei giocatori        | `game_answers`                                   | solo membri, **solo dopo** la chiusura del round         |
-| Codice stanza                 | `game_rooms.code`                                | chi possiede il codice; visibile ai membri               |
+| Dato                                            | Dove                                             | Accesso                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Email                                           | `app_private.profile_private.email`              | solo RPC `get_my_profile` (proprietario)                                                          |
+| Punteggi/XP/vittorie/record/streak/impostazioni | `app_private.profile_private`                    | proprietario via RPC (`get_my_profile`, `get_my_progression`); aggregati pubblici via leaderboard |
+| Obiettivi sbloccati                             | `app_private.user_achievements`                  | solo server + proprietario via `get_my_progression`                                               |
+| Elenco amici ("seguo")                          | `app_private.friendships`                        | solo proprietario via RPC (`list_friends`, `add/remove_friend`)                                   |
+| Storico partite                                 | `app_private.profile_sessions`                   | proprietario via `get_my_history`; aggregati per classifiche periodiche                           |
+| Domande + risposte corrette                     | `app_private.question_bank`                      | solo server                                                                                       |
+| Soluzione del round                             | `app_private.round_keys`                         | restituita solo dopo la rivelazione                                                               |
+| Contatori rate limit / policy                   | `app_private.rate_limits`, `rate_limit_policies` | solo server                                                                                       |
+| Risposte dei giocatori                          | `game_answers`                                   | solo membri, **solo dopo** la chiusura del round                                                  |
+| Codice stanza                                   | `game_rooms.code`                                | chi possiede il codice; visibile ai membri                                                        |
 
 ---
 
@@ -113,6 +115,14 @@ select has_schema_privilege('anon', 'app_private', 'USAGE');           -- atteso
 - Domande estratte e soluzioni conservate in `app_private`.
 - Statistiche finali calcolate e registrate dal server una sola volta
   (`stats_recorded`).
+- Progressione (005): XP obiettivo accreditati solo dal DB e una sola volta
+  (PK su `user_achievements`); partite singole idempotenti via `session_key`
+  (i retry non duplicano punti/XP); avatar da catalogo chiuso con CHECK +
+  RPC; impostazioni validate (solo chiavi note, valori booleani); rate limit
+  dedicati per avatar/impostazioni/amici.
+- Recupero password: messaggio identico per email esistenti e inesistenti
+  (anti-enumerazione); nuova password solo con sessione di recovery valida o
+  da utente autenticato.
 - Errori "attesi" restituiti come JSON (`ok:false`) per non perdere i contatori
   di rate limiting; errori interni come eccezioni.
 

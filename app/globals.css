@@ -92,3 +92,54 @@ body {
   outline: 2px solid #10b981;
   outline-offset: 2px;
 }
+
+/* Evita il doppio tap-to-zoom sui controlli touch senza bloccare lo zoom pagina */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Link "salta al contenuto" per la navigazione da tastiera */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: #059669;
+  color: #ffffff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 0 0.75rem 0;
+  font-weight: 600;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/*
+ * Riduzione delle animazioni: rispettata sia dalla preferenza di sistema
+ * (prefers-reduced-motion) sia dall'impostazione in-app "Riduci animazioni"
+ * (attributo data-reduce-motion applicato da Header/impostazioni profilo).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
